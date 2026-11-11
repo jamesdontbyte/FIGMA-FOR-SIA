@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "figma-code-connect": {
+      "source": "figma/mcp-server-guide",
+      "sourceType": "github",
+      "skillPath": "skills/figma-code-connect/SKILL.md",
+      "computedHash": "8d8a2aabe7321388c3c7f2bdcae08c6cc47c7d4ee60ac7254a27f8f5a1713e89"
+    },
+    "figma-generate-design": {
+      "source": "figma/mcp-server-guide",
+      "sourceType": "github",
+      "skillPath": "skills/figma-generate-design/SKILL.md",
+      "computedHash": "71ca0e61ddc0e43c9be44a31edde3ab9c4d85f80952317a65c1174ef00591790"
+    },
+    "figma-use": {
+      "source": "figma/mcp-server-guide",
+      "sourceType": "github",
+      "skillPath": "skills/figma-use/SKILL.md",
+      "computedHash": "48e3f14396e7c821092329a2bb4d119cff78bca0196b18f85733a15e8ebbe1af"
+    },
+    "figma-use-motion": {
+      "source": "figma/mcp-server-guide",
+      "sourceType": "github",
+      "skillPath": "skills/figma-use-motion/SKILL.md",
+      "computedHash": "f94c7eef4dff97de3f2a121b7854e7acb1ed0d3b70e91f06e4f50eaa0d7bbf5f"
+    }
+  }
+}
