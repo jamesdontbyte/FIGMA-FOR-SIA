@@ -1,0 +1,28 @@
+{
+  "pivot": [
+    68.5,
+    171.8
+  ],
+  "handSize": [
+    252,
+    237
+  ],
+  "handOffset": [
+    663,
+    485
+  ],
+  "canvas": [
+    929,
+    1044
+  ],
+  "source": {
+    "file": "Reference/mascotHome.png",
+    "crop": [
+      211,
+      85,
+      1140,
+      1129
+    ]
+  },
+  "stroke": 20.0
+}

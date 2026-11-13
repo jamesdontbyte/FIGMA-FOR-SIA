@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MascotWave — Loc8</title>
+<link rel="stylesheet" href="mascot-wave.css">
+<style>
+  :root {
+    --bg-app: #F1F1F2;
+    --text-primary: #0A0A0A;
+    --text-secondary: #6B6F76;
+    --border: #E3E4E7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: #fff;
+    color: var(--text-primary);
+    font: 14px/1.5 "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    display: grid;
+    place-items: center;
+    padding: 40px 20px;
+  }
+  .page { width: min(880px, 100%); }
+  h1 { font-size: 20px; font-weight: 700; margin: 0 0 4px; }
+  p.lede { margin: 0 0 28px; color: var(--text-secondary); font-size: 13px; }
+  .stage {
+    background: var(--bg-app);
+    border-radius: 20px;
+    padding: 28px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 40px;
+    min-height: 360px;
+    flex-wrap: wrap;
+  }
+  .stage > figure { margin: 0; text-align: center; }
+  .stage figcaption {
+    margin-top: 10px;
+    font-size: 11px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+  .controls {
+    margin-top: 20px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  button {
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+  button[aria-pressed="true"] {
+    background: var(--text-primary);
+    border-color: var(--text-primary);
+    color: #fff;
+  }
+  .note {
+    margin-top: 18px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+  }
+  code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>MascotWave</h1>
+  <p class="lede">Loc8 Home mascot, waving from the wrist. Two layers, one pivot.</p>
+
+  <div class="stage">
+    <figure>
+      <div class="mascot-wave" data-size="200" data-autoplay="true" data-loop="true">
+        <div class="mascot-wave__stage">
+          <img class="mascot-wave__body" src="../../assets/mascot/body.png" alt="">
+          <div class="mascot-wave__hand-wrap">
+            <img class="mascot-wave__hand" src="../../assets/mascot/hand.png" alt="">
+          </div>
+        </div>
+      </div>
+      <figcaption>200 px</figcaption>
+    </figure>
+
+    <figure>
+      <div class="mascot-wave" data-size="320" data-autoplay="true" data-loop="true">
+        <div class="mascot-wave__stage">
+          <img class="mascot-wave__body" src="../../assets/mascot/body.png" alt="">
+          <div class="mascot-wave__hand-wrap">
+            <img class="mascot-wave__hand" src="../../assets/mascot/hand.png" alt="">
+          </div>
+        </div>
+      </div>
+      <figcaption>320 px</figcaption>
+    </figure>
+  </div>
+
+  <div class="controls">
+    <button id="size" aria-pressed="false">Size 320</button>
+    <button id="autoplay" aria-pressed="true">Autoplay</button>
+    <button id="loop" aria-pressed="true">Loop</button>
+  </div>
+
+  <p class="note">
+    <code>data-size</code>, <code>data-autoplay</code> and <code>data-loop</code> drive the
+    component. With <code>prefers-reduced-motion: reduce</code> the mascot holds the static pose.
+  </p>
+</div>
+
+<script>
+  // Minimal initialiser: map data-* attributes onto the component.
+  document.querySelectorAll('.mascot-wave').forEach(function (el) {
+    el.style.setProperty('--mw-size', el.dataset.size || 200);
+  });
+
+  var first = document.querySelector('.mascot-wave');
+  function toggle(btn, attr, on, off) {
+    var isOn = first.dataset[attr] !== 'false';
+    btn.addEventListener('click', function () {
+      var next = !isOn;
+      isOn = next;
+      first.dataset[attr] = next ? 'true' : 'false';
+      btn.setAttribute('aria-pressed', String(next));
+      btn.textContent = next ? on : off;
+    });
+  }
+
+  var sizeBtn = document.getElementById('size');
+  var big = false;
+  sizeBtn.addEventListener('click', function () {
+    big = !big;
+    first.dataset.size = big ? 320 : 200;
+    first.style.setProperty('--mw-size', big ? 320 : 200);
+    sizeBtn.textContent = big ? 'Size 200' : 'Size 320';
+    sizeBtn.setAttribute('aria-pressed', String(big));
+  });
+
+  toggle(document.getElementById('autoplay'), 'autoplay', 'Autoplay', 'Paused');
+  toggle(document.getElementById('loop'), 'loop', 'Loop', 'Once');
+</script>
+</body>
+</html>

@@ -2,7 +2,9 @@
 
 ## What this repo is
 
-A Figma-first design repo for a jeepney tracking app (Commuter + Driver roles). There is **no application code**: no `package.json`, no build/test/lint, and it is not a git repo. Do not scaffold a Next.js app or run `npm`/`next` commands unless the user explicitly asks for code.
+A Figma-first design repo for **Loc8**, a jeepney tracking app (Commuter + Driver roles). There is **no application code**: no `package.json`, no build/test/lint, and it is not a git repo. Do not scaffold a Next.js app or run `npm`/`next` commands unless the user explicitly asks for code.
+
+**Product name: Loc8.** Use "Loc8" in screens, copy, specs and filenames. The Figma file still carries the working-title slug `Transpo-App` in its URL; that is not the product name.
 
 ## Read first
 
@@ -16,7 +18,7 @@ A Figma-first design repo for a jeepney tracking app (Commuter + Driver roles). 
 - Pages: `0:1` Foundations (tokens + components), `3:2` Login-Signup-OTP-Terms-Privacy, `3:3` Commuter, `3:4` Driver, `3:5` Admin.
 - Screen frames are named `Commuter / 0N <Screen>` and `Driver / 0N <Screen>` at `393 x 852`; inner screens may still hold placeholder content, so build to the spec rather than copying what is there.
 - MCP flow: `create_session` with the file key first, then `get_metadata` for structure, `get_design_context` only when turning a design into code. Load `/figma-use` before any `use_figma` call.
-- Reuse Foundations components (`Badge/Route`, `Chip/GPS`, `IconCircle/Tint`, `Floating Commuter Nav`, `Button/Primary/...`) via `search_design_system` before creating new ones.
+- Reuse Foundations components (`Badge/Route`, `Chip/GPS`, `IconCircle/Tint`, `Floating Commuter Nav`, `Role/Commuter/GreetingRow`, `Role/Commuter/MascotHero`, `Button/Primary/...`) via `search_design_system` before creating new ones.
 - Screenshots: one at a time, `maxDimension` 500 or less. If a screenshot does not return, skip it and tell the user to check visually.
 
 ## Rules that are easy to break
@@ -25,7 +27,8 @@ A Figma-first design repo for a jeepney tracking app (Commuter + Driver roles). 
 - One filled black button per view. `accent` blue is for live/go/location only, not actions.
 - At most 3 to 4 cards above the fold. One tint per card, max 3 tints per screen; tinted cards get no shadow and no border.
 - Seat counts cannot be inferred from GPS: show driver-entered counts or a state (`Likely free` / `Almost full` / `Unknown`) with an "updated N min ago" line. Never imply exact free seats from location data.
-- Respect `layout/safe-top` 59, `layout/safe-bottom` 34, 20 px side padding, and 104 px bottom clearance for the floating nav.
+- Respect `layout/safe-top` 59, `layout/safe-bottom` 34, `layout/home-top` 71 on Home, 20 px side padding, and 104 px bottom clearance for the floating nav.
+- Home header order is fixed: greeting row (date overline + greeting, weather pill + bell — **no calendar icon box**) → `Role/Commuter/MascotHero` full-bleed band → cards. Home has **no search bar and no saved-place chips** (`Home` / `School` / `Work`); search lives on Map.
 
 ## Reuse before create (hard rule)
 
@@ -44,3 +47,4 @@ A Figma-first design repo for a jeepney tracking app (Commuter + Driver roles). 
 - Plan first: ask clarifying questions; do not assume stack, design, or features. Never invent missing information — stop and ask.
 - Delegate implementation to sub-agents and act as coordinator; parallelize independent work.
 - Report which checks ran and their results. If app code is later added, run its lint, typecheck, and build before claiming a task is done.
+

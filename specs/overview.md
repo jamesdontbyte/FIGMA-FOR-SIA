@@ -1,11 +1,11 @@
 # Project Overview
 
-**Working title:** Jeepney transportation app (final app name and logo TBD)
+**Product name:** Loc8 (logo TBD)
 **Related spec:** `DESIGN.md` (design system)
 
 ## 1. Summary
 
-A mobile application for **commuters** and **jeepney drivers**. Drivers share their live location during a trip. Commuters see approaching jeepneys on a map, with arrival estimates and alerts at their chosen waiting point. Drivers get a passenger-demand view (hotspots) showing where passengers are likely waiting.
+Loc8 is a mobile application for **commuters** and **jeepney drivers**. Drivers share their live location during a trip. Commuters see approaching jeepneys on a map, with arrival estimates and alerts at their chosen waiting point. Drivers get a passenger-demand view (hotspots) showing where passengers are likely waiting.
 
 A **jeepney cooperative (coop)** acts as the admin: it registers and verifies drivers and jeepneys, assigns drivers, and sets fares. The coop dashboard (with LTFRB and LTO roles) comes in a later stage and is not part of the current design work.
 
@@ -44,7 +44,7 @@ Splash → Get Started (3 slides) → Choose role (Commuter / Driver)
 
 Bottom navigation: **Home · Map · Activity · Profile**, with a center **Waiting** button.
 
-- **Home:** header with app name and notification button, jeepney hero visual, weather, active jeepneys, nearest-jeepney card (route, seats left, ETA), fare card (Regular and Senior/PWD). Also: "Where to?" search, saved places, active-waiting banner, service alerts, recent routes.
+- **Home:** greeting header (date, greeting, weather, notifications), **Loc8 mascot hero** with a short message, nearest-jeepney card (route, seats left, ETA), active-waiting banner, find-a-jeepney card, service alerts, fare card (Regular and Senior/PWD), recent routes. No search bar and no saved places on Home — search and saved places live on **Map**.
 - **Map:** live jeepneys, routes, stops and waiting points, layer toggles, tap-to-view details, recenter button, stale-location indicator.
 - **Waiting flow:** choose route and waiting point, start waiting, ETA ring, alert settings, "I boarded", then rating.
 - **Activity:** current waiting or ride, trip history.
