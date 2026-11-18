@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loc8 · Fare card prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* =========================================================================
+   Tokens. Names follow DESIGN.md. Raw values live only in this block.
+   ========================================================================= */
+:root {
+  /* Color */
+  --bg-default: #FFFFFF;
+  --bg-app: #F1F1F2;
+  --bg-subtle: #F7F8FA;
+  --bg-muted: #F1F3F6;
+  --bg-strong: #D3D8DF;
+  --text-primary: #0F1115;
+  --text-secondary: #5F6877;
+  --primary-default: #0A0A0A;
+  --accent-tint: #E8F1FE;
+  --route-1: #1F6FEB;   /* R1 · Bugasong */
+  --route-2: #F28C38;   /* R2 · San Jose */
+  --route-3: #2E9E5B;   /* R3 · Patnongon */
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+
+  /* Size */
+  --layout-touch-min: 44px;
+  --size-home-content-w: 361px;
+  --size-control-md: 48px;
+  --size-icon-xs: 16px;
+  --size-dot-sm: 8px;
+  --size-bell-btn: 36px;        /* compact trigger height, same as the Home bell */
+  --size-knob: 24px;
+  --size-slider-track: 4px;     /* thin slider track */
+  --size-tab-underline: 2px;    /* underline tab indicator */
+  --stroke-icon: 1.75;
+
+  /* Radius */
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-xl: 24px;
+  --radius-pill: 999px;
+
+  /* Elevation */
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.04);
+  --shadow-raised: 0 8px 24px rgba(15, 17, 21, 0.10);
+
+  /* Type */
+  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
+
+  /* Motion */
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ui-dur: 200ms;
+  --menu-open-dur: 250ms;
+  --menu-close-dur: 150ms;
+}
+
+html, body { margin: 0; }
+body {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: var(--bg-app);
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+p, h2, ul { margin: 0; }
+ul { padding: 0; list-style: none; }
+button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
+button:focus { outline: none; }
+
+/* Text styles (DESIGN.md section 3) */
+.t-display { font-size: 40px; line-height: 48px; font-weight: 800; }
+.t-h3      { font-size: 18px; line-height: 26px; font-weight: 600; }
+.t-body    { font-size: 14px; line-height: 20px; font-weight: 400; }
+.t-caption { font-size: 12px; line-height: 16px; font-weight: 500; }
+.w-600     { font-weight: 600; }
+.muted     { color: var(--text-secondary); }
+
+.icon { width: var(--size-icon-xs); height: var(--size-icon-xs); flex: none;
+  fill: none; stroke: currentColor; stroke-width: var(--stroke-icon); stroke-linecap: round; stroke-linejoin: round; }
+
+/* =========================================================================
+   Card (Role/Commuter/FlatCard surface)
+   ========================================================================= */
+.fare-card {
+  width: var(--size-home-content-w);
+  box-sizing: border-box;
+  padding: var(--space-4);
+  background: var(--bg-default);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  display: flex; flex-direction: column; gap: var(--space-4);
+}
+
+/* 1. Header: title + From select ------------------------------------------ */
+.fare-head { display: flex; align-items: center; justify-content: space-between; }
+
+.from { position: relative; }
+.from-trigger {
+  /* 44 hit area around a 36 pill */
+  display: flex; align-items: center;
+  min-height: var(--layout-touch-min);
+}
+.from-pill {
+  display: flex; align-items: center; gap: var(--space-1);
+  height: var(--size-bell-btn);
+  padding: 0 var(--space-3);
+  background: var(--bg-muted);
+  border-radius: var(--radius-pill);
+  transition: background-color var(--ui-dur) ease-out;
+}
+.from-trigger[aria-expanded="true"] .from-pill,
+.from-trigger:focus-visible .from-pill { background: var(--accent-tint); }
+.from-trigger .icon { transition: transform var(--menu-open-dur) var(--ease-smooth-out); }
+.from-trigger[aria-expanded="true"] .icon { transform: rotate(180deg); }
+
+.from-menu {
+  position: absolute; right: 0; top: calc(100% + var(--space-1));
+  z-index: 2;
+  min-width: 200px;
+  padding: var(--space-2);
+  display: flex; flex-direction: column; gap: var(--space-1);
+  background: var(--bg-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raised);
+  transform-origin: top right;
+  opacity: 0; transform: scale(0.97); visibility: hidden;
+  transition: opacity var(--menu-close-dur) var(--ease-smooth-out),
+              transform var(--menu-close-dur) var(--ease-smooth-out),
+              visibility 0s linear var(--menu-close-dur);
+}
+.from[data-open="true"] .from-menu {
+  opacity: 1; transform: none; visibility: visible;
+  transition-duration: var(--menu-open-dur), var(--menu-open-dur), 0s;
+  transition-delay: 0s;
+}
+.from-option {
+  display: flex; align-items: center; gap: var(--space-3);
+  width: 100%; height: var(--size-control-md);
+  padding: 0 var(--space-3);
+  box-sizing: border-box;
+  border-radius: var(--radius-sm);
+  text-align: left;
+}
+.from-option:focus-visible { background: var(--bg-muted); }
+.from-option[aria-selected="true"] { background: var(--accent-tint); }
+.from-option .name { flex: 1; font-size: 16px; line-height: 24px; font-weight: 500; } /* type/body-lg */
+.from-option .icon { visibility: hidden; }
+.from-option[aria-selected="true"] .icon { visibility: visible; }
+
+.dot { width: var(--size-dot-sm); height: var(--size-dot-sm); border-radius: var(--radius-pill); flex: none; }
+
+/* 2. Big value ------------------------------------------------------------- */
+.fare-value { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; }
+
+/* 3. Underline tabs -------------------------------------------------------- */
+.tabs { position: relative; display: flex; gap: var(--space-5); }
+.tab {
+  min-height: var(--layout-touch-min);
+  font-size: 14px; line-height: 20px; font-weight: 600; /* type/body, 600 */
+  color: var(--text-secondary);
+  transition: color var(--ui-dur) ease-out;
+}
+.tab[aria-selected="true"], .tab:focus-visible { color: var(--text-primary); }
+/* Filled indicator bar under the active label. Not a border: there is no baseline rule. */
+.tab-line {
+  position: absolute; left: 0; bottom: 0;
+  height: var(--size-tab-underline);
+  background: var(--primary-default);
+  border-radius: var(--radius-pill);
+  transition: transform var(--ui-dur) ease-out, width var(--ui-dur) ease-out;
+}
+
+/* 4. Destination bars ------------------------------------------------------ */
+.bars { display: flex; flex-direction: column; gap: var(--space-2); }
+.bar-row {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--text-secondary);
+  transition: color var(--ui-dur) ease-out;
+}
+.bar-row.is-selected { color: var(--text-primary); }
+/* Town name: tap to select this town and reset its slider to the full trip */
+.town {
+  min-height: var(--layout-touch-min);
+  text-align: left;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.town:focus-visible { color: var(--text-primary); }
+
+/* Bar slider: the colored bar is a range input (1 km to the town's distance) */
+.bar-slider { position: relative; height: var(--layout-touch-min); }
+.track {
+  position: absolute; left: 0; right: 0; top: 50%;
+  height: var(--size-slider-track);
+  margin-top: calc(var(--size-slider-track) / -2);
+  background: var(--bg-strong); /* thin line needs the stronger gray to stay visible on white */
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+.fill { display: block; height: 100%; background: var(--town-color); border-radius: var(--radius-pill); }
+.bar-slider input {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%; margin: 0;
+  background: none; cursor: pointer;
+  -webkit-appearance: none; appearance: none;
+}
+.bar-slider input:focus { outline: none; }
+.bar-slider input::-webkit-slider-runnable-track { background: none; }
+.bar-slider input::-moz-range-track { background: none; }
+.bar-slider input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: var(--size-knob); height: var(--size-knob);
+  border: 0; border-radius: var(--radius-pill);
+  background: var(--town-color); /* knob matches the town color so it stands out */
+  box-shadow: var(--shadow-raised);
+}
+.bar-slider input::-moz-range-thumb {
+  width: var(--size-knob); height: var(--size-knob);
+  border: 0; border-radius: var(--radius-pill);
+  background: var(--town-color);
+  box-shadow: var(--shadow-raised);
+}
+/* Focus without an outline: the knob turns dark */
+.bar-slider input:focus-visible::-webkit-slider-thumb { background: var(--primary-default); }
+.bar-slider input:focus-visible::-moz-range-thumb { background: var(--primary-default); }
+
+.bar-end { display: flex; align-items: baseline; gap: var(--space-2); justify-content: flex-end; min-width: 116px; }
+
+/* 5. Computation ----------------------------------------------------------- */
+.calc {
+  display: flex; flex-direction: column; gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-subtle);
+  border-radius: var(--radius-lg);
+}
+.calc-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.calc-row[hidden] { display: none; }
+.calc-total { padding-top: var(--space-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+
+<section class="fare-card" aria-labelledby="fare-title">
+  <!-- 1. Header -->
+  <div class="fare-head">
+    <h2 class="t-caption muted" id="fare-title">Fares</h2>
+    <div class="from" data-open="false">
+      <button class="from-trigger" type="button" id="from-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="from-menu">
+        <span class="from-pill">
+          <span class="t-caption muted">From</span>
+          <span class="t-caption w-600" id="from-name">Bugasong</span>
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </span>
+      </button>
+      <div class="from-menu" id="from-menu" role="listbox" aria-label="Boarding municipality"></div>
+    </div>
+  </div>
+
+  <!-- 2. Big value -->
+  <div class="fare-value" aria-live="polite">
+    <p class="t-display" id="total-big">₱0.00</p>
+    <p class="t-body muted" id="total-sub"></p>
+  </div>
+
+  <!-- 3. Underline tabs -->
+  <div class="tabs" role="tablist" aria-label="Fare type">
+    <button class="tab" type="button" role="tab" data-type="regular" aria-selected="true">Regular</button>
+    <button class="tab" type="button" role="tab" data-type="discount" aria-selected="false">Student · Senior · PWD</button>
+    <span class="tab-line" aria-hidden="true"></span>
+  </div>
+
+  <!-- 4. Destination bars -->
+  <ul class="bars" id="bars" aria-label="Fare to each municipality"></ul>
+
+  <!-- 5. Computation -->
+  <div class="calc" aria-label="How the fare is computed">
+    <div class="calc-row"><span class="t-caption muted">Base fare · first 4 km</span><span class="t-body w-600" id="calc-base"></span></div>
+    <div class="calc-row" id="row-extra"><span class="t-caption muted" id="calc-extra-label"></span><span class="t-body w-600" id="calc-extra"></span></div>
+    <div class="calc-row" id="row-discount"><span class="t-caption muted">20% off</span><span class="t-body w-600" id="calc-discount"></span></div>
+    <div class="calc-row" id="row-round"><span class="t-caption muted">Rounded to nearest ₱0.25</span><span class="t-body w-600" id="calc-round"></span></div>
+    <div class="calc-row calc-total"><span class="t-caption muted">Total</span><span class="t-h3" id="calc-total"></span></div>
+  </div>
+
+  <!-- 6. Footnote -->
+  <p class="t-caption muted">Distances are placeholders · LTFRB fare from Sep 28, 2026</p>
+</section>
+
+<script>
+(function () {
+  // ---------------------------------------------------------------------
+  // Fare rules: LTFRB PUJ fare guide, effective Sept 28, 2026
+  // ---------------------------------------------------------------------
+  var BASE_FARE = 14, BASE_KM = 4, PER_KM = 2, DISCOUNT_RATE = 0.2;
+  function regularFare(km) { return BASE_FARE + PER_KM * Math.max(0, km - BASE_KM); }
+  // Student / Senior / PWD: 20% off, rounded to the nearest 25 centavos (matches the guide's table)
+  function discountFare(km) { return Math.round(regularFare(km) * (1 - DISCOUNT_RATE) * 4) / 4; }
+  var FARE_BY_TYPE = { regular: regularFare, discount: discountFare };
+
+  // Self-check against rows of the official fare table: [km, regular, discount]
+  [[1, 14, 11.25], [4, 14, 11.25], [5, 16, 12.75], [6, 18, 14.5], [9, 24, 19.25],
+   [10, 26, 20.75], [17, 40, 32], [29, 64, 51.25], [50, 106, 84.75]
+  ].forEach(function (row) {
+    console.assert(regularFare(row[0]) === row[1], 'regular fare wrong at ' + row[0] + ' km');
+    console.assert(discountFare(row[0]) === row[2], 'discount fare wrong at ' + row[0] + ' km');
+  });
+
+  // ---------------------------------------------------------------------
+  // Municipalities (one color per route, DESIGN.md 2.5)
+  // ---------------------------------------------------------------------
+  var TOWNS = [
+    { id: 'bugasong',  name: 'Bugasong',  color: 'var(--route-1)' },
+    { id: 'san-jose',  name: 'San Jose',  color: 'var(--route-2)' },
+    { id: 'patnongon', name: 'Patnongon', color: 'var(--route-3)' }
+  ];
+  // shortcut: placeholder road distances (km), replace with real measured km before release
+  var DISTANCE_KM = { 'bugasong|patnongon': 18, 'bugasong|san-jose': 40, 'patnongon|san-jose': 22 };
+
+  function distanceKm(a, b) { return DISTANCE_KM[a + '|' + b] || DISTANCE_KM[b + '|' + a]; }
+  function townById(id) { return TOWNS.filter(function (t) { return t.id === id; })[0]; }
+
+  // ---------------------------------------------------------------------
+  // State
+  // ---------------------------------------------------------------------
+  var fromId = 'bugasong';
+  var toId = null;          // set to the farthest town on start and when From changes
+  var fareType = 'regular';
+  var rideKm = {};          // km the commuter rides toward each town; missing = the whole trip
+
+  var $ = function (id) { return document.getElementById(id); };
+  var peso = function (amount) { return '₱' + Math.abs(amount).toFixed(2); };
+  var signedPeso = function (amount) { return (amount < 0 ? '−' : '+') + peso(amount); };
+
+  function destinations() {
+    return TOWNS.filter(function (t) { return t.id !== fromId; })
+      .map(function (t) { return { town: t, km: distanceKm(fromId, t.id) }; })
+      .sort(function (a, b) { return a.km - b.km; });
+  }
+
+  // ---------------------------------------------------------------------
+  // From select (Input/Select menu, compact trigger)
+  // ---------------------------------------------------------------------
+  var fromWrap = document.querySelector('.from');
+  var trigger = $('from-trigger');
+  var menu = $('from-menu');
+  menu.innerHTML = TOWNS.map(function (t) {
+    return '<button class="from-option" type="button" role="option" data-id="' + t.id + '">' +
+      '<span class="dot" style="background:' + t.color + '"></span>' +
+      '<span class="name">' + t.name + '</span>' +
+      '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>';
+  }).join('');
+  var options = Array.prototype.slice.call(menu.children);
+
+  function setMenuOpen(open) {
+    fromWrap.dataset.open = String(open);
+    trigger.setAttribute('aria-expanded', String(open));
+    if (open) options.filter(function (o) { return o.dataset.id === fromId; })[0].focus();
+  }
+  trigger.addEventListener('click', function () { setMenuOpen(fromWrap.dataset.open !== 'true'); });
+  options.forEach(function (option, i) {
+    option.addEventListener('click', function () {
+      fromId = option.dataset.id;
+      toId = null;
+      rideKm = {};
+      setMenuOpen(false);
+      trigger.focus();
+      render();
+    });
+    option.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); options[(i + 1) % options.length].focus(); }
+      if (e.key === 'ArrowUp') { e.preventDefault(); options[(i - 1 + options.length) % options.length].focus(); }
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && fromWrap.dataset.open === 'true') { setMenuOpen(false); trigger.focus(); }
+  });
+  document.addEventListener('click', function (e) {
+    if (!fromWrap.contains(e.target)) setMenuOpen(false);
+  });
+
+  // ---------------------------------------------------------------------
+  // Tabs
+  // ---------------------------------------------------------------------
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.tab'));
+  var tabLine = document.querySelector('.tab-line');
+  tabs.forEach(function (tab) {
+    tab.addEventListener('click', function () { fareType = tab.dataset.type; render(); });
+  });
+
+  // ---------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------
+  var barsList = $('bars');
+
+  function render() {
+    var fareFor = FARE_BY_TYPE[fareType];
+    var rows = destinations();
+    if (!toId) toId = rows[rows.length - 1].town.id; // farthest town
+
+    // Header select
+    $('from-name').textContent = townById(fromId).name;
+    options.forEach(function (o) { o.setAttribute('aria-selected', String(o.dataset.id === fromId)); });
+
+    // Tabs
+    tabs.forEach(function (tab) {
+      var isActive = tab.dataset.type === fareType;
+      tab.setAttribute('aria-selected', String(isActive));
+      if (isActive) {
+        tabLine.style.width = tab.offsetWidth + 'px';
+        tabLine.style.transform = 'translateX(' + tab.offsetLeft + 'px)';
+      }
+    });
+
+    // Bar sliders: rebuild only when the From town changes, so a drag in progress is never replaced
+    if (barsList.dataset.from !== fromId) {
+      barsList.dataset.from = fromId;
+      barsList.innerHTML = rows.map(function (r) {
+        return '<li class="bar-row" data-id="' + r.town.id + '" style="--town-color:' + r.town.color + '">' +
+          '<button class="town t-caption w-600" type="button" aria-label="' + r.town.name + ', whole trip">' + r.town.name + '</button>' +
+          '<span class="bar-slider">' +
+            '<span class="track" aria-hidden="true"><span class="fill"></span></span>' +
+            '<input type="range" min="1" max="' + r.km + '" step="1" value="' + r.km + '" aria-label="Distance toward ' + r.town.name + '">' +
+          '</span>' +
+          '<span class="bar-end"><span class="t-caption muted km"></span><span class="t-body w-600 amt"></span></span>' +
+          '</li>';
+      }).join('');
+      Array.prototype.forEach.call(barsList.children, function (row) {
+        var townId = row.dataset.id;
+        row.querySelector('.town').addEventListener('click', function () {
+          toId = townId; delete rideKm[townId]; render();
+        });
+        row.querySelector('input').addEventListener('input', function (e) {
+          toId = townId; rideKm[townId] = Number(e.target.value); render();
+        });
+      });
+    }
+    rows.forEach(function (r) {
+      var row = barsList.querySelector('[data-id="' + r.town.id + '"]');
+      var km = rideKm[r.town.id] || r.km;
+      var slider = row.querySelector('input');
+      slider.value = km;
+      slider.setAttribute('aria-valuetext', km + ' of ' + r.km + ' km, ' + peso(fareFor(km)));
+      // Fill ends at the knob centre (the knob travels inside the track minus its own width)
+      var ratio = r.km > 1 ? (km - 1) / (r.km - 1) : 1;
+      row.querySelector('.fill').style.width = 'calc(' + ratio + ' * (100% - var(--size-knob)) + var(--size-knob) / 2)';
+      row.querySelector('.km').textContent = km < r.km ? km + ' of ' + r.km + ' km' : r.km + ' km';
+      row.querySelector('.amt').textContent = peso(fareFor(km));
+      row.classList.toggle('is-selected', r.town.id === toId);
+    });
+
+    // Computation for the selected destination
+    var fullKm = distanceKm(fromId, toId);
+    var km = rideKm[toId] || fullKm;
+    var extraKm = Math.max(0, km - BASE_KM);
+    var regular = regularFare(km);
+    var total = fareFor(km);
+    var isDiscount = fareType === 'discount';
+    var discountAmount = -regular * DISCOUNT_RATE;
+    var roundingAmount = total - (regular + discountAmount);
+
+    $('calc-base').textContent = peso(BASE_FARE);
+    $('row-extra').hidden = extraKm === 0;
+    $('calc-extra-label').textContent = '+ ' + extraKm + ' km × ' + peso(PER_KM);
+    $('calc-extra').textContent = peso(extraKm * PER_KM);
+    $('row-discount').hidden = !isDiscount;
+    $('calc-discount').textContent = signedPeso(discountAmount);
+    $('row-round').hidden = !isDiscount || Math.abs(roundingAmount) < 0.005;
+    $('calc-round').textContent = signedPeso(roundingAmount);
+    $('calc-total').textContent = peso(total);
+    console.assert(Math.abs(BASE_FARE + extraKm * PER_KM + (isDiscount ? discountAmount + roundingAmount : 0) - total) < 0.005,
+      'computation rows do not add up to the total');
+
+    $('total-big').textContent = peso(total);
+    $('total-sub').textContent = km + ' km ' + (km < fullKm ? 'toward ' : 'to ') + townById(toId).name;
+  }
+
+  render();
+  // Measure the tab underline again after the web font loads, so it matches the label width.
+  if (document.fonts) document.fonts.ready.then(render);
+})();
+</script>
+</body>
+</html>

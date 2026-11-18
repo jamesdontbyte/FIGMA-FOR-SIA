@@ -45,7 +45,7 @@ Splash → Get Started (3 slides) → Choose role (Commuter / Driver)
 Bottom navigation: **Home · Map · Activity · Profile**, with a center **Waiting** button.
 
 - **Home:** greeting header (date, greeting, weather, notifications), **Loc8 mascot hero** with a short message, nearest-jeepney card (route, seats left, ETA), active-waiting banner, find-a-jeepney card, service alerts, fare card (Regular and Senior/PWD), recent routes. No search bar and no saved places on Home — search and saved places live on **Map**.
-- **Map:** live jeepneys, routes, stops and waiting points, layer toggles, tap-to-view details, recenter button, stale-location indicator.
+- **Map:** live jeepneys, routes, stops and waiting points, layer toggles, tap-to-view details, recenter button, stale-location indicator. Each jeepney card's direction reads the route's own name followed by the next route in the loop: **R1 Bugasong → San Jose**, **R2 San Jose → Patnongon**, **R3 Patnongon → Bugasong**. The card also shows the fare and the jeepney's plate/ID.
 - **Waiting flow:** choose route and waiting point, start waiting, ETA ring, alert settings, "I boarded", then rating.
 - **Activity:** current waiting or ride, trip history.
 - **Profile:** passenger type (Regular, Senior, PWD), saved places and routes, settings, language, privacy, help, about, log out.

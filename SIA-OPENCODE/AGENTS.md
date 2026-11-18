@@ -1,50 +1,54 @@
 # AGENTS.md
 
-## What this repo is
+## Project
+Figma-first design repo. There is no application code (no package.json, no build, test or lint). Do not scaffold an app or run npm commands unless the user explicitly asks for code.
 
-A Figma-first design repo for **Loc8**, a jeepney tracking app (Commuter + Driver roles). There is **no application code**: no `package.json`, no build/test/lint, and it is not a git repo. Do not scaffold a Next.js app or run `npm`/`next` commands unless the user explicitly asks for code.
+@DESIGN.md
+@specs/overview.md
 
-**Product name: Loc8.** Use "Loc8" in screens, copy, specs and filenames. The Figma file still carries the working-title slug `Transpo-App` in its URL; that is not the product name.
+- `specs/overview.md` is the single source of truth for **what the system does**: users, features, flows, routes, rules.
+- `DESIGN.md` is the single source of truth for **how it looks**: tokens, layout, components, motion. Add a token there before using a new value.
+- This file holds only instructions on how to work. It holds no project or design content.
 
-## Read first
+## Keeping the docs up to date
+Requirements and design change often. When the user discusses a change, decide where it belongs, then update that file.
 
-- `DESIGN.md` — design system and single source of truth for every token (color, type, spacing, radius, shadows) plus component specs. Add a token here before using a new value.
-- `specs/overview.md` — product scope, roles, screen list, and feature intent.
+| The change is about... | Update |
+|---|---|
+| Users, roles, features, screens' purpose, flows, routes, data rules, privacy, scope | `specs/overview.md` |
+| Colors, type, spacing, radius, components, layout, motion, visual rules | `DESIGN.md` |
+| Both (for example, a new feature that needs a new component) | Both. Put the behavior in `overview.md` and the look in `DESIGN.md`. Never repeat the same content in both files. |
+| How Claude should work (this file's rules) | `CLAUDE.md`, only when the user asks |
 
+Rules:
+1. **Update on decisions, not on ideas.** Brainstorming, options and questions do not change the docs. Update when the user decides ("let's do X", "remove Y", "change Z to ..."). If it is unclear whether something is decided, ask.
+2. **Edit the existing text.** Change or remove the old line. Do not add a note next to it, and do not leave the old version behind. Remove anything that is now unused (tokens, components, features).
+3. **Fix every place the change touches.** Check both files and `DESIGN.md` section 11 (component registry) for mentions of the thing you changed, so the files never contradict each other.
+4. **Keep each file in its lane.** No visual details in `overview.md`. No feature or business rules in `DESIGN.md`. If a rule about the system shows up in `DESIGN.md`, move it to `overview.md`.
+5. **If the two files conflict, stop and ask** the user which is correct. Do not pick one silently.
+6. **Tell the user what changed.** After editing, give a short list: file, section, what changed. For a big or risky change (removing a feature, changing a token used in many places), say what it affects and ask before editing.
+7. **Figma follows the docs.** If a doc change means the Figma file is out of date, say so and list what needs updating. Do not change Figma unless asked.
 
-## Figma is the deliverable
+## Figma
+- File key: `JAryzeTw3PfSgV8mvozSf6` (https://www.figma.com/design/JAryzeTw3PfSgV8mvozSf6/Transpo-App). If the user gives another frame URL, use theirs.
+- Start with `create_session` using the file key, then `get_metadata` to see the pages and frames.
+- Load `/figma-use` before any `use_figma` call.
+- This is design work only. Do not generate code from designs.
+- Existing frames may hold placeholder content. Build to the spec, not to what is on the canvas.
+- Screenshots: take one at a time with `maxDimension` 500 or less. If a screenshot does not return, skip it and tell the user to check visually.
 
-- File: https://www.figma.com/design/JAryzeTw3PfSgV8mvozSf6/Transpo-App?node-id=135-169 (file key `JAryzeTw3PfSgV8mvozSf6`). If the user supplies another frame URL, use theirs.
-- Pages: `0:1` Foundations (tokens + components), `3:2` Login-Signup-OTP-Terms-Privacy, `3:3` Commuter, `3:4` Driver, `3:5` Admin.
-- Screen frames are named `Commuter / 0N <Screen>` and `Driver / 0N <Screen>` at `393 x 852`; inner screens may still hold placeholder content, so build to the spec rather than copying what is there.
-- MCP flow: `create_session` with the file key first, then `get_metadata` for structure, `get_design_context` only when turning a design into code. Load `/figma-use` before any `use_figma` call.
-- Reuse Foundations components (`Badge/Route`, `Chip/GPS`, `IconCircle/Tint`, `Floating Commuter Nav`, `Role/Commuter/GreetingRow`, `Role/Commuter/MascotHero`, `Button/Primary/...`) via `search_design_system` before creating new ones.
-- Screenshots: one at a time, `maxDimension` 500 or less. If a screenshot does not return, skip it and tell the user to check visually.
+## Reuse before create
+- Before building any element, look for an existing one in this order:
+  1. Components on the Foundations page of this file. List them with `get_metadata`, and also try `search_design_system`.
+  2. The component registry in `DESIGN.md`
+- If a match exists, use an instance of it. Do not redraw or restyle it.
+- Never create a new component, icon or illustration unless the user says "create a new component/asset".
+- If nothing fits and the user did not ask for a new one, stop and ask.
+- Allowed changes: text, state, size variant, token-bound fill. Not allowed: structure, radius, shape or icon style.
+- When you finish, list the components you reused and any you created (created should be zero unless requested).
 
-## Rules that are easy to break
-
-- Never hard-code hex values, font sizes, radii, or spacing; bind to the tokens in `DESIGN.md`.
-- One filled black button per view. `accent` blue is for live/go/location only, not actions.
-- At most 3 to 4 cards above the fold. One tint per card, max 3 tints per screen; tinted cards get no shadow and no border.
-- Seat counts cannot be inferred from GPS: show driver-entered counts or a state (`Likely free` / `Almost full` / `Unknown`) with an "updated N min ago" line. Never imply exact free seats from location data.
-- Respect `layout/safe-top` 59, `layout/safe-bottom` 34, `layout/home-top` 71 on Home, 20 px side padding, and 104 px bottom clearance for the floating nav.
-- Home header order is fixed: greeting row (date overline + greeting, weather pill + bell — **no calendar icon box**) → `Role/Commuter/MascotHero` full-bleed band → cards. Home has **no search bar and no saved-place chips** (`Home` / `School` / `Work`); search lives on Map.
-
-## Reuse before create (hard rule)
-
-- Before building ANY element, search for an existing one in this order:
-  1. Foundations components in Figma (`search_design_system`)
-  2. The Component registry in `DESIGN.md` section 12
-- If a match exists, use an instance of it. Do not redraw, restyle, or "improve" it.
-- Never create a new component, icon, or illustration unless the user explicitly says
-  "create a new component/asset". That request is the ONLY permission to create one.
-- If nothing fits and the user did not ask for a new one, STOP and ask. Do not improvise.
-- Variants and overrides allowed: text, state, size variant, token-bound fill. Not allowed: changing structure, radius, shape, or icon style.
-- When you finish, list which existing components you reused and any you created (created ones should be zero unless requested).
-
-## Working style (user preferences)
+## Working style
 - Keep responses concise unless asked otherwise.
-- Plan first: ask clarifying questions; do not assume stack, design, or features. Never invent missing information — stop and ask.
-- Delegate implementation to sub-agents and act as coordinator; parallelize independent work.
-- Report which checks ran and their results. If app code is later added, run its lint, typecheck, and build before claiming a task is done.
-
+- Plan first and ask clarifying questions. Do not assume stack, design or features. Never invent missing information. Stop and ask.
+- Delegate to sub-agents where it helps, and run independent work in parallel.
+- Report which checks you ran and what they showed.

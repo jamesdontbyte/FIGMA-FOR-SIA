@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loc8 · Weather island prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* =========================================================================
+   Tokens. Names follow DESIGN.md. Raw values live only in this block.
+   ========================================================================= */
+:root {
+  /* Color: core */
+  --bg-default: #FFFFFF;
+  --bg-app: #F1F1F2;
+  --bg-subtle: #F7F8FA;
+  --bg-muted: #F1F3F6;
+  --text-primary: #0F1115;
+  --text-secondary: #5F6877;
+  --text-inverse: #FFFFFF;
+  --semantic-error-ink: #D93036;
+
+  /* Color: weather card (DESIGN.md 2.7, the only place gradients are allowed) */
+  --weather-sky-clear: linear-gradient(180deg, #1F63C4 0%, #2A72D2 55%, #2F7AD6 100%);
+  --weather-sky-cloudy: linear-gradient(180deg, #455E79 0%, #637A92 100%);
+  --weather-sky-rain: linear-gradient(180deg, #3A4B5E 0%, #56697D 100%);
+  --weather-sky-storm: linear-gradient(180deg, #2E3641 0%, #4D5866 100%);
+  --weather-glow-warm: rgba(255, 200, 120, 0.34);
+  --weather-glow-cool: rgba(110, 190, 255, 0.32);
+  --weather-glow-cloud: rgba(255, 255, 255, 0.18);
+  --weather-glow-mist: rgba(170, 200, 230, 0.22);
+  --weather-glow-storm: rgba(140, 160, 190, 0.2);
+  --weather-rain: rgba(255, 255, 255, 0.42);
+  --weather-flash: rgba(255, 255, 255, 0.5);
+  --weather-text-muted: rgba(255, 255, 255, 0.88);
+  --weather-tab-track: rgba(0, 0, 0, 0.16);
+  --weather-tab-pill: rgba(255, 255, 255, 0.2);
+  --weather-tab-pill-focus: rgba(255, 255, 255, 0.32);
+  --weather-tab-focus: rgba(255, 255, 255, 0.12);
+  --weather-sun: #FFD75E;
+  --weather-pill-sky: linear-gradient(90deg, #FFFFFF 0%, #DDF0FD 45%, #9FD4F8 100%);
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+
+  /* Layout and size */
+  --layout-frame-width: 393px;
+  --layout-frame-height: 852px;
+  --layout-home-top: 71px;
+  --layout-touch-min: 44px;
+  --size-home-content-w: 361px;
+  --size-weather-pill-h: 28px;
+  --size-bell-btn: 36px;
+  --size-icon-xs: 16px;
+  --size-dot-sm: 8px;
+  --size-control-md: 48px;
+  --size-weather-icon-lg: 48px;
+  --size-weather-icon-box: 64px;
+  --stroke-icon: 1.75;
+
+  /* Radius */
+  --radius-none: 0px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-xl: 24px;
+  --radius-2xl: 28px;
+
+  /* Elevation */
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.04);
+  --shadow-raised: 0 8px 24px rgba(15, 17, 21, 0.10);
+
+  /* Type */
+  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Motion: island morph */
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --island-open-dur: 350ms;
+  --island-close-dur: 250ms;
+  --pill-fade-dur: 150ms;
+  --card-fade-dur: 250ms;
+  --card-fade-delay: 100ms;
+  --card-rise: 4px;
+  --fade-blur: 2px;
+  --reduced-fade-dur: 150ms;
+
+  /* Motion: from the transitions.dev reference (AssestRef/style.css) */
+  --tabs-dur: 250ms;
+  --tabs-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --icon-swap-dur: 250ms;
+  --icon-swap-ease: ease-in-out;
+  --icon-swap-start-scale: 0.25;
+  --icon-swap-blur: 2px;
+  --digit-dur: 500ms;
+  --digit-ease: cubic-bezier(0.34, 1.45, 0.64, 1);
+  --digit-distance: 8px;
+  --digit-stagger: 70ms;
+  --digit-blur: 2px;
+  --text-swap-dur: 150ms;
+  --text-swap-ease: ease-in-out;
+  --text-swap-translate-y: 4px;
+  --text-swap-blur: 2px;
+  --text-morph-dur: 180ms;
+  --text-morph-resize-dur: 240ms;
+  --text-morph-blur: 2px;
+  --wx-sky-fade: 700ms;
+  --wx-sky-ease: ease-in-out;
+  --wx-drift-dur: 16s;
+  --wx-drift-distance: 18px;
+  --wx-rain-dur: 800ms;
+  --wx-flash-dur: 7s;
+  --wx-spin-dur: 30s;
+  --wx-float-dur: 4s;
+  --wx-float-distance: 3px;
+  --wx-drop-dur: 1100ms;
+  --press-scale: 0.97;
+  --press-dur: 150ms;
+}
+
+/* =========================================================================
+   Page and phone frame
+   ========================================================================= */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: var(--bg-subtle);
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+:where(button) {
+  font: inherit;
+  color: inherit;
+  padding: 0;
+  margin: 0;
+  border: 0;          /* reset the browser default, not a design border */
+  background: none;
+  cursor: pointer;
+}
+:where(button):focus-visible { outline: none; } /* focus is shown by fill change instead */
+
+.phone {
+  position: relative;
+  width: var(--layout-frame-width);
+  height: var(--layout-frame-height);
+  background: var(--bg-app);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-raised);
+  overflow: hidden;
+}
+@media (max-width: 430px) {
+  body { display: block; }
+  .phone { width: 100%; border-radius: var(--radius-none); box-shadow: none; }
+}
+
+.screen {
+  padding: var(--layout-home-top) var(--space-4) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* =========================================================================
+   Greeting row (Role/Commuter/GreetingRow)
+   ========================================================================= */
+.greeting-row {
+  position: relative;               /* the island is positioned against this row */
+  width: 100%;
+  max-width: var(--size-home-content-w);
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.greeting {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  transition: opacity var(--island-close-dur) var(--ease-smooth-out);
+}
+/* The open card covers the greeting, so fade it out of the way. */
+.greeting-row:has(.island[data-open="true"]) .greeting {
+  opacity: 0;
+  transition: opacity var(--pill-fade-dur) var(--ease-smooth-out);
+}
+.greeting-date {
+  font-family: var(--font-mono);
+  font-size: 10px; line-height: 14px; font-weight: 500; letter-spacing: 0.04em; /* type/mono-tag */
+  color: var(--text-secondary);
+}
+.greeting-title {
+  font-size: 17px; line-height: 24px; font-weight: 600; /* type/greeting */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Fixed-size slot: keeps the row still while the island morphs. JS sets its width. */
+.weather-slot {
+  flex: none;
+  height: var(--size-weather-pill-h);
+}
+
+.bell {
+  position: relative;
+  flex: none;
+  width: var(--size-bell-btn);
+  height: var(--size-bell-btn);
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--bg-default);
+  box-shadow: var(--shadow-card);
+}
+.bell::before { /* 44 px hit area around the 36 px button */
+  content: "";
+  position: absolute;
+  inset: calc((var(--layout-touch-min) - var(--size-bell-btn)) / -2);
+}
+.bell:focus-visible { background: var(--bg-muted); }
+.bell-dot {
+  position: absolute;
+  top: 6px; right: 7px;
+  width: var(--size-dot-sm);
+  height: var(--size-dot-sm);
+  border-radius: 999px;
+  background: var(--semantic-error-ink);
+}
+
+/* =========================================================================
+   Weather island: one element that is both the white pill and the sky card
+   ========================================================================= */
+.island {
+  position: absolute;
+  top: calc((40px - var(--size-weather-pill-h)) / 2);
+  right: 0;                     /* JS sets right, width, height, border-radius in px */
+  z-index: 10;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--weather-pill-sky);
+  box-shadow: var(--shadow-card);
+  transform-origin: center;
+  /* Closing values. The open values are on [data-open="true"]. */
+  transition:
+    width var(--island-close-dur) var(--ease-smooth-out),
+    height var(--island-close-dur) var(--ease-smooth-out),
+    right var(--island-close-dur) var(--ease-smooth-out),
+    border-radius var(--island-close-dur) var(--ease-smooth-out),
+    box-shadow var(--island-close-dur) var(--ease-smooth-out),
+    transform var(--press-dur) var(--ease-smooth-out);
+}
+.island[data-open="true"] {
+  box-shadow: var(--shadow-raised);
+  transition:
+    width var(--island-open-dur) var(--ease-smooth-out),
+    height var(--island-open-dur) var(--ease-smooth-out),
+    right var(--island-open-dur) var(--ease-smooth-out),
+    border-radius var(--island-open-dur) var(--ease-smooth-out),
+    box-shadow var(--island-open-dur) var(--ease-smooth-out),
+    transform var(--press-dur) var(--ease-smooth-out);
+}
+
+/* The real button. It covers the whole pill when closed,
+   and the top strip of the card when open (tap it to close). */
+.island-trigger {
+  position: absolute;
+  top: calc((40px - var(--size-weather-pill-h)) / 2);
+  right: 0;
+  z-index: 11;
+  height: var(--size-weather-pill-h);
+  border-radius: 999px;
+}
+.island-trigger[aria-expanded="false"]::before { /* 44 px hit area around the 36 px pill */
+  content: "";
+  position: absolute;
+  inset: calc((var(--layout-touch-min) - var(--size-weather-pill-h)) / -2);
+}
+/* Pill press: scale the island, not the invisible button */
+.island-trigger[aria-expanded="false"]:is(:active, .is-pressed) + .island {
+  transform: scale(var(--press-scale));
+  transition: transform var(--press-dur) var(--ease-smooth-out);
+}
+/* Focus: darken the pill slightly (fill change, no outline) */
+.island-trigger[aria-expanded="false"]:focus-visible + .island { filter: brightness(0.94); }
+
+/* ---------- Sky backdrop: fades in over the white pill as it opens ---------- */
+.island-sky {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity var(--island-close-dur) var(--ease-smooth-out);
+}
+.island[data-open="true"] .island-sky {
+  opacity: 1;
+  transition: opacity var(--island-open-dur) var(--ease-smooth-out);
+}
+/* The sky layers are sized to the full card, anchored top-right,
+   so the gradient does not stretch while the island grows. */
+.sky {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: var(--size-home-content-w);
+  height: 100%;
+  min-height: 300px;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity var(--wx-sky-fade) var(--wx-sky-ease);
+}
+.sky[data-key="clear"]  { background: var(--weather-sky-clear); }
+.sky[data-key="cloudy"] { background: var(--weather-sky-cloudy); }
+.sky[data-key="rain"]   { background: var(--weather-sky-rain); }
+.sky[data-key="storm"]  { background: var(--weather-sky-storm); }
+.island[data-weather="clear"]  .sky[data-key="clear"],
+.island[data-weather="cloudy"] .sky[data-key="cloudy"],
+.island[data-weather="rain"]   .sky[data-key="rain"],
+.island[data-weather="storm"]  .sky[data-key="storm"] { opacity: 1; }
+
+/* Soft drifting light */
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  animation: wx-drift var(--wx-drift-dur) ease-in-out infinite alternate;
+}
+.blob--glow   { width: 240px; height: 240px; right: -110px; bottom: -110px;
+                background: radial-gradient(circle, var(--weather-glow-warm), transparent 65%); }
+.blob--cool   { width: 280px; height: 280px; left: -130px; top: 70px;
+                background: radial-gradient(circle, var(--weather-glow-cool), transparent 68%);
+                animation-duration: calc(var(--wx-drift-dur) * 1.3); animation-direction: alternate-reverse; }
+.blob--cloud1 { width: 300px; height: 170px; left: -90px; top: 110px;
+                background: radial-gradient(ellipse, var(--weather-glow-cloud), transparent 68%); }
+.blob--cloud2 { width: 240px; height: 150px; right: -90px; bottom: 30px;
+                background: radial-gradient(ellipse, var(--weather-glow-cloud), transparent 68%);
+                animation-duration: calc(var(--wx-drift-dur) * 1.25); animation-direction: alternate-reverse; }
+.blob--mist   { width: 320px; height: 200px; left: -60px; bottom: -40px;
+                background: radial-gradient(ellipse, var(--weather-glow-mist), transparent 68%); }
+.blob--storm  { width: 300px; height: 200px; right: -100px; top: 40px;
+                background: radial-gradient(ellipse, var(--weather-glow-storm), transparent 68%); }
+@keyframes wx-drift {
+  from { transform: none; }
+  to   { transform: translate(var(--wx-drift-distance), calc(var(--wx-drift-distance) * -0.6)) scale(1.08); }
+}
+
+/* Rain streaks (built by JS) */
+.rain { position: absolute; inset: 0; }
+.rain > span {
+  position: absolute;
+  top: -24px;
+  left: var(--x);
+  width: 1.5px;
+  height: var(--len, 16px);
+  border-radius: 1px;
+  background: linear-gradient(transparent, var(--weather-rain));
+  animation: wx-fall var(--wx-rain-dur) linear infinite;
+  animation-delay: calc(var(--wx-rain-dur) * var(--d) * -1);
+}
+@keyframes wx-fall {
+  from { transform: rotate(8deg); }
+  to   { transform: translate(-50px, 380px) rotate(8deg); }
+}
+
+/* Lightning flash (storm only) */
+.flash {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: radial-gradient(ellipse at 70% 0%, var(--weather-flash), transparent 70%);
+  animation: wx-flash var(--wx-flash-dur) ease-out infinite;
+}
+@keyframes wx-flash {
+  0%, 86%, 100% { opacity: 0; }
+  88% { opacity: 0.4; }
+  89% { opacity: 0.08; }
+  91% { opacity: 0.3; }
+}
+
+/* Save battery: no sky motion while the card is closed */
+.island:not([data-open="true"]) .island-sky * { animation-play-state: paused; }
+
+/* ---------- Pill content (closed view) ---------- */
+.island-pill {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  height: var(--size-weather-pill-h);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-3);
+  white-space: nowrap;
+  color: var(--text-primary);
+  font-size: 14px; line-height: 20px; font-weight: 600; /* type/body, value weight */
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  opacity: 1;
+  filter: none;
+  /* Closing: pill content comes back after the card content has left */
+  transition:
+    opacity var(--pill-fade-dur) var(--ease-smooth-out) var(--card-fade-delay),
+    filter var(--pill-fade-dur) var(--ease-smooth-out) var(--card-fade-delay);
+}
+.island[data-open="true"] .island-pill {
+  opacity: 0;
+  filter: blur(var(--fade-blur));
+  transition:
+    opacity var(--pill-fade-dur) var(--ease-smooth-out),
+    filter var(--pill-fade-dur) var(--ease-smooth-out);
+}
+
+/* ---------- Card content (open view) ---------- */
+/* Fixed at full width and anchored top-right, so the island reveals it as it grows. */
+.island-card {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  width: var(--size-home-content-w);
+  color: var(--text-inverse);
+  opacity: 0;
+  transform: translateY(var(--card-rise));
+  filter: blur(var(--fade-blur));
+  transition:
+    opacity var(--pill-fade-dur) var(--ease-smooth-out),
+    transform var(--pill-fade-dur) var(--ease-smooth-out),
+    filter var(--pill-fade-dur) var(--ease-smooth-out);
+}
+.island[data-open="true"] .island-card {
+  opacity: 1;
+  transform: none;
+  filter: none;
+  transition:
+    opacity var(--card-fade-dur) var(--ease-smooth-out) var(--card-fade-delay),
+    transform var(--card-fade-dur) var(--ease-smooth-out) var(--card-fade-delay),
+    filter var(--card-fade-dur) var(--ease-smooth-out) var(--card-fade-delay);
+}
+
+.wx-body { padding: var(--space-5) var(--space-5) 0; }
+.wx-place {
+  font-size: 16px; line-height: 24px; font-weight: 600; /* type/body-lg, title weight */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.wx-day {
+  font-size: 12px; line-height: 16px; font-weight: 500; /* type/caption */
+  color: var(--weather-text-muted);
+}
+.wx-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+.wx-temp {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  font-size: 60px; line-height: 70px; font-weight: 500; letter-spacing: -0.02em; /* type/weather-temp */
+  font-variant-numeric: tabular-nums;
+}
+.wx-cond {
+  margin-top: var(--space-1);
+  font-size: 14px; line-height: 20px; font-weight: 600; /* type/body, label weight */
+}
+.wx-hl {
+  font-size: 12px; line-height: 16px; font-weight: 500; /* type/caption */
+  color: var(--weather-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Icons */
+.icon {
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--stroke-icon);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.icon-xs { width: var(--size-icon-xs); height: var(--size-icon-xs); }
+.icon-lg { width: var(--size-weather-icon-lg); height: var(--size-weather-icon-lg); stroke-width: 1.2; }
+
+/* Large icon: icon swap */
+.big-icon {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--size-weather-icon-box);
+  height: var(--size-weather-icon-box);
+}
+.big-icon .t-icon {
+  grid-area: 1 / 1;
+  position: relative;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  filter: blur(var(--icon-swap-blur));
+  transform: scale(var(--icon-swap-start-scale));
+  transition:
+    opacity var(--icon-swap-dur) var(--icon-swap-ease),
+    filter var(--icon-swap-dur) var(--icon-swap-ease),
+    transform var(--icon-swap-dur) var(--icon-swap-ease);
+}
+.big-icon[data-state="sun"]   .t-icon[data-key="sun"],
+.big-icon[data-state="cloud"] .t-icon[data-key="cloud"],
+.big-icon[data-state="rain"]  .t-icon[data-key="rain"],
+.big-icon[data-state="bolt"]  .t-icon[data-key="bolt"] {
+  opacity: 1;
+  filter: none;
+  transform: none;
+}
+.t-icon[data-key="sun"], .t-icon[data-key="bolt"] { color: var(--weather-sun); }
+.t-icon[data-key="cloud"], .t-icon[data-key="rain"] { color: var(--text-inverse); }
+
+/* Icon idle motion */
+.wx-idle { display: grid; place-items: center; }
+.wx-idle--spin    { animation: wx-spin var(--wx-spin-dur) linear infinite; }
+.wx-idle--float   { animation: wx-float var(--wx-float-dur) ease-in-out infinite alternate; }
+.wx-idle--flicker { animation: wx-flicker calc(var(--wx-float-dur) * 1.5) ease-in-out infinite; }
+@keyframes wx-spin { to { transform: rotate(360deg); } }
+@keyframes wx-float {
+  from { transform: translateY(calc(var(--wx-float-distance) * -1)); }
+  to   { transform: translateY(var(--wx-float-distance)); }
+}
+@keyframes wx-flicker {
+  0%, 70%, 100% { opacity: 1; transform: none; }
+  74% { opacity: 0.55; transform: scale(0.97); }
+  78% { opacity: 1; transform: scale(1.02); }
+}
+.wx-drops {
+  position: absolute;
+  left: 50%;
+  top: 46px;
+  width: 22px;
+  margin-left: -11px;
+  display: flex;
+  justify-content: space-between;
+}
+.wx-drops > span {
+  width: 2px;
+  height: 7px;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0;
+  animation: wx-drop var(--wx-drop-dur) ease-in infinite;
+}
+.wx-drops > span:nth-child(2) { animation-delay: calc(var(--wx-drop-dur) * 0.35); }
+.wx-drops > span:nth-child(3) { animation-delay: calc(var(--wx-drop-dur) * 0.7); }
+@keyframes wx-drop {
+  0%   { transform: translateY(-2px); opacity: 0; }
+  30%  { opacity: 1; }
+  100% { transform: translateY(10px); opacity: 0; }
+}
+
+/* Digit pop-in */
+@keyframes t-digit-pop-in {
+  0%   { transform: translateY(var(--digit-distance)); opacity: 0; filter: blur(var(--digit-blur)); }
+  100% { transform: none; opacity: 1; filter: none; }
+}
+.t-digit-group { display: inline-flex; align-items: baseline; }
+.t-digit { display: inline-block; }
+.t-digit-group.is-animating .t-digit { animation: t-digit-pop-in var(--digit-dur) var(--digit-ease) both; }
+.t-digit-group.is-animating .t-digit[data-stagger="1"] { animation-delay: var(--digit-stagger); }
+.t-digit-group.is-animating .t-digit[data-stagger="2"] { animation-delay: calc(var(--digit-stagger) * 2); }
+.t-digit-group.is-animating .t-digit[data-same] { animation: none; }
+
+/* Condition text swap */
+.t-text-swap {
+  display: inline-block;
+  transform: none;
+  filter: none;
+  opacity: 1;
+  transition:
+    transform var(--text-swap-dur) var(--text-swap-ease),
+    filter var(--text-swap-dur) var(--text-swap-ease),
+    opacity var(--text-swap-dur) var(--text-swap-ease);
+}
+.t-text-swap.is-exit {
+  transform: translateY(calc(var(--text-swap-translate-y) * -1));
+  filter: blur(var(--text-swap-blur));
+  opacity: 0;
+}
+.t-text-swap.is-enter-start {
+  transform: translateY(var(--text-swap-translate-y));
+  filter: blur(var(--text-swap-blur));
+  opacity: 0;
+  transition: none;
+}
+
+/* Day name morph: only the letters that change cross-fade */
+.t-morph { white-space: nowrap; }
+.t-morph-swap {
+  display: inline-grid;
+  vertical-align: bottom;
+  justify-items: start;
+  transition: width var(--text-morph-resize-dur) var(--ease-smooth-out);
+}
+.t-morph-swap > span {
+  grid-area: 1 / 1;
+  white-space: pre;
+  transition:
+    opacity var(--text-morph-dur) var(--ease-smooth-out),
+    filter var(--text-morph-dur) var(--ease-smooth-out);
+}
+.t-morph-new { opacity: 0; filter: blur(var(--text-morph-blur)); }
+.t-morph-swap.is-morphing .t-morph-old { opacity: 0; filter: blur(var(--text-morph-blur)); }
+.t-morph-swap.is-morphing .t-morph-new { opacity: 1; filter: none; }
+
+/* Day tabs: see-through track with a sliding light pill */
+.tabs {
+  position: relative;
+  display: flex;
+  gap: var(--space-1);
+  margin: var(--space-4) var(--space-3) var(--space-3);
+  padding: var(--space-1);
+  border-radius: var(--radius-md);
+  background: var(--weather-tab-track);
+}
+.tab {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-width: 0;
+  height: var(--size-control-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: var(--radius-sm);
+  font-size: 12px; line-height: 16px; font-weight: 500; /* type/caption */
+  color: var(--weather-text-muted);
+  transition:
+    color var(--tabs-dur) var(--tabs-ease),
+    background-color var(--tabs-dur) var(--tabs-ease),
+    transform var(--press-dur) var(--ease-smooth-out);
+}
+.tab[aria-selected="true"] { color: var(--text-inverse); font-weight: 600; }
+.tab:is(:active, .is-pressed) {
+  transform: scale(var(--press-scale));
+  transition: color var(--tabs-dur) var(--tabs-ease), transform 0ms;
+}
+@media (hover: hover) and (pointer: fine) {
+  .tab:not([aria-selected="true"]):hover { color: var(--text-inverse); }
+}
+.tab:not([aria-selected="true"]):focus-visible { background: var(--weather-tab-focus); color: var(--text-inverse); }
+.tabs:has(.tab[aria-selected="true"]:focus-visible) .tabs-pill { background: var(--weather-tab-pill-focus); }
+.tabs-pill {
+  position: absolute;
+  top: var(--space-1);
+  left: 0;
+  z-index: 0;
+  width: 0;
+  height: var(--size-control-md);
+  border-radius: var(--radius-sm);
+  background: var(--weather-tab-pill);
+  pointer-events: none;
+  transition:
+    transform var(--tabs-dur) var(--tabs-ease),
+    width var(--tabs-dur) var(--tabs-ease),
+    background-color var(--tabs-dur) var(--tabs-ease);
+}
+
+/* =========================================================================
+   Placeholder content below (so the overlay can be seen)
+   ========================================================================= */
+.placeholder-card {
+  width: 100%;
+  max-width: var(--size-home-content-w);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  border-radius: var(--radius-xl);
+  background: var(--bg-default);
+  box-shadow: var(--shadow-card);
+}
+.placeholder-label {
+  font-size: 12px; line-height: 16px; font-weight: 500; /* type/caption */
+  color: var(--text-secondary);
+}
+.skeleton {
+  height: var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--bg-muted);
+}
+.skeleton--tall { height: 48px; width: 40%; }
+.skeleton--short { width: 60%; }
+
+/* Touch: controls press in full on a tap, never select their label */
+:where(button, [role="tab"]) {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* =========================================================================
+   Reduced motion: no morph, no sky motion. The card appears with a 150 ms fade.
+   ========================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  .island,
+  .island[data-open="true"] { transition: opacity var(--reduced-fade-dur) linear !important; }
+  .island.is-fading { opacity: 0; transition: none !important; }
+  .island-trigger[aria-expanded="false"]:is(:active, .is-pressed) + .island { transform: none; }
+  .island-sky, .sky, .island-pill, .island-card, .greeting { transition: none !important; }
+  .island-pill, .island-card { filter: none !important; transform: none !important; }
+  .blob, .rain > span, .flash, .wx-idle, .wx-drops > span { animation: none !important; }
+  .rain, .flash { display: none; }
+  .wx-drops > span { opacity: 1; }
+  .big-icon .t-icon { transition: none !important; filter: none !important; transform: none !important; }
+  .t-digit-group .t-digit { animation: none !important; }
+  .t-text-swap, .t-morph-swap, .t-morph-swap > span { transition: none !important; }
+  .tabs-pill, .tab { transition: none !important; }
+  .tab:is(:active, .is-pressed) { transform: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <main class="screen">
+
+    <div class="greeting-row">
+      <div class="greeting">
+        <span class="greeting-date">TODAY, 11 NOVEMBER</span>
+        <span class="greeting-title">Good morning, Ana</span>
+      </div>
+
+      <!-- Empty slot that holds the pill's place in the row -->
+      <div class="weather-slot" aria-hidden="true"></div>
+
+      <!-- The accessible trigger. Placed before the island so CSS "+" can scale the island on press. -->
+      <button class="island-trigger" id="weather-trigger" type="button"
+              aria-expanded="false" aria-controls="weather-card"
+              aria-label="Weather: 28 degrees, cloudy. 5-day forecast"></button>
+
+      <!-- One element that is both the pill and the card -->
+      <div class="island" id="weather-island" data-open="false" data-weather="cloudy">
+
+        <div class="island-sky" aria-hidden="true">
+          <div class="sky" data-key="clear">
+            <span class="blob blob--cool"></span>
+            <span class="blob blob--glow"></span>
+          </div>
+          <div class="sky" data-key="cloudy">
+            <span class="blob blob--cloud1"></span>
+            <span class="blob blob--cloud2"></span>
+          </div>
+          <div class="sky" data-key="rain">
+            <span class="blob blob--mist"></span>
+            <span class="rain" data-count="14"></span>
+          </div>
+          <div class="sky" data-key="storm">
+            <span class="blob blob--storm"></span>
+            <span class="rain" data-count="20"></span>
+            <span class="flash"></span>
+          </div>
+        </div>
+
+        <div class="island-pill" aria-hidden="true">
+          <svg class="icon icon-xs" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.25 15a4.5 4.5 0 0 0 4.5 4.5H18a3.75 3.75 0 0 0 1.332-7.257 3 3 0 0 0-3.758-3.848 5.25 5.25 0 0 0-10.233 2.33A4.502 4.502 0 0 0 2.25 15Z"/></svg>
+          <span>28°</span>
+        </div>
+
+        <div class="island-card" id="weather-card" role="region" aria-label="5-day forecast" aria-hidden="true" inert>
+          <div class="wx-body" role="tabpanel" id="weather-panel" aria-labelledby="weather-tab-0">
+            <div class="wx-place">Bugasong</div>
+            <div class="wx-day"><span class="t-morph" id="weather-day">Wednesday</span></div>
+            <div class="wx-hero">
+              <div class="wx-temp"><span class="t-digit-group" id="weather-temp">28</span><span>°</span></div>
+              <div class="big-icon" data-state="cloud" aria-hidden="true">
+                <span class="t-icon" data-key="sun"><span class="wx-idle wx-idle--spin"><svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z"/></svg></span></span>
+                <span class="t-icon" data-key="cloud"><span class="wx-idle wx-idle--float"><svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M2.25 15a4.5 4.5 0 0 0 4.5 4.5H18a3.75 3.75 0 0 0 1.332-7.257 3 3 0 0 0-3.758-3.848 5.25 5.25 0 0 0-10.233 2.33A4.502 4.502 0 0 0 2.25 15Z"/></svg></span></span>
+                <span class="t-icon" data-key="rain"><span class="wx-idle wx-idle--float"><svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M2.25 15a4.5 4.5 0 0 0 4.5 4.5H18a3.75 3.75 0 0 0 1.332-7.257 3 3 0 0 0-3.758-3.848 5.25 5.25 0 0 0-10.233 2.33A4.502 4.502 0 0 0 2.25 15Z"/></svg></span><span class="wx-drops"><span></span><span></span><span></span></span></span>
+                <span class="t-icon" data-key="bolt"><span class="wx-idle wx-idle--flicker"><svg class="icon icon-lg" viewBox="0 0 24 24"><path d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg></span></span>
+              </div>
+            </div>
+            <div class="wx-cond"><span class="t-text-swap" id="weather-cond">Cloudy</span></div>
+            <div class="wx-hl">H:<span class="t-digit-group" id="weather-high">31</span>° L:<span class="t-digit-group" id="weather-low">25</span>°</div>
+          </div>
+
+          <div class="tabs" role="tablist" aria-label="Forecast days">
+            <span class="tabs-pill" aria-hidden="true"></span>
+            <!-- Tabs are built by JS from FORECAST below -->
+          </div>
+        </div>
+      </div>
+
+      <button class="bell" type="button" aria-label="Notifications, 1 unread">
+        <svg class="icon icon-xs" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+        <span class="bell-dot" aria-hidden="true"></span>
+      </button>
+    </div>
+
+    <!-- Placeholder content: only here so you can see the overlay sit on top of it -->
+    <section class="placeholder-card" aria-label="Placeholder card">
+      <span class="placeholder-label">Placeholder card</span>
+      <div class="skeleton skeleton--tall"></div>
+      <div class="skeleton"></div>
+      <div class="skeleton skeleton--short"></div>
+    </section>
+    <section class="placeholder-card" aria-label="Placeholder card">
+      <span class="placeholder-label">Placeholder card</span>
+      <div class="skeleton"></div>
+      <div class="skeleton skeleton--short"></div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var root = document.documentElement;
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  // Read a CSS custom property as a number (e.g. "250ms" -> 250, "24px" -> 24).
+  function cssNumber(name, fallback) {
+    var value = parseFloat(getComputedStyle(root).getPropertyValue(name));
+    return Number.isFinite(value) ? value : fallback;
+  }
+
+  // ---------------------------------------------------------------------
+  // PLACEHOLDER MOCK DATA. Not real forecast data. Replace with a weather
+  // source when the app is built. "sky" picks the backdrop, "icon" the icon.
+  // ---------------------------------------------------------------------
+  var FORECAST = [
+    { label: 'Today', day: 'Wednesday', sky: 'cloudy', icon: 'cloud', condition: 'Cloudy',        temp: 28, high: 31, low: 25 },
+    { label: 'Thu',   day: 'Thursday',  sky: 'clear',  icon: 'sun',   condition: 'Sunny',         temp: 31, high: 33, low: 26 },
+    { label: 'Fri',   day: 'Friday',    sky: 'rain',   icon: 'rain',  condition: 'Light rain',    temp: 27, high: 29, low: 24 },
+    { label: 'Sat',   day: 'Saturday',  sky: 'storm',  icon: 'bolt',  condition: 'Thunderstorms', temp: 26, high: 28, low: 24 },
+    { label: 'Sun',   day: 'Sunday',    sky: 'clear',  icon: 'sun',   condition: 'Sunny',         temp: 30, high: 32, low: 25 }
+  ];
+
+  // Heroicons (outline) paths, MIT License, Copyright (c) Tailwind Labs, Inc.
+  var CLOUD_PATH = 'M2.25 15a4.5 4.5 0 0 0 4.5 4.5H18a3.75 3.75 0 0 0 1.332-7.257 3 3 0 0 0-3.758-3.848 5.25 5.25 0 0 0-10.233 2.33A4.502 4.502 0 0 0 2.25 15Z';
+  var ICON_PATHS = {
+    sun: 'M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z',
+    cloud: CLOUD_PATH,
+    rain: CLOUD_PATH,
+    bolt: 'm3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z'
+  };
+
+  var row = document.querySelector('.greeting-row');
+  var slot = document.querySelector('.weather-slot');
+  var trigger = document.getElementById('weather-trigger');
+  var island = document.getElementById('weather-island');
+  var pillContent = island.querySelector('.island-pill');
+  var card = document.getElementById('weather-card');
+  var panel = document.getElementById('weather-panel');
+  var bigIcon = card.querySelector('.big-icon');
+  var dayEl = document.getElementById('weather-day');
+  var tempEl = document.getElementById('weather-temp');
+  var highEl = document.getElementById('weather-high');
+  var lowEl = document.getElementById('weather-low');
+  var condEl = document.getElementById('weather-cond');
+  var tabBar = card.querySelector('.tabs');
+  var tabPill = tabBar.querySelector('.tabs-pill');
+
+  var isOpen = false;
+  var currentDay = 0;
+
+  // =====================================================================
+  // Rain streaks. Spread is fixed (not random) so the card looks the
+  // same every time: each streak gets an x position, a start delay and a length.
+  // =====================================================================
+  island.querySelectorAll('.rain').forEach(function (rain) {
+    var count = parseInt(rain.dataset.count, 10) || 12;
+    for (var i = 0; i < count; i++) {
+      var streak = document.createElement('span');
+      var x = ((i * 37) % 100) + (i % 3) * 2;
+      streak.style.setProperty('--x', Math.min(x, 112) + '%');
+      streak.style.setProperty('--d', ((i * 0.618) % 1).toFixed(3));
+      streak.style.setProperty('--len', (12 + (i * 7) % 10) + 'px');
+      rain.appendChild(streak);
+    }
+  });
+
+  // =====================================================================
+  // Island morph
+  // `auto` sizes cannot be animated, so we measure real pixel sizes and
+  // animate between them.
+  // =====================================================================
+  function pillHeight() { return cssNumber('--size-weather-pill-h', 36); }
+
+  function setBox(el, width, height, right) {
+    el.style.width = width + 'px';
+    el.style.height = height + 'px';
+    el.style.right = right + 'px';
+  }
+
+  function applyClosedGeometry() {
+    var width = pillContent.offsetWidth;          // natural width of icon + "28°"
+    slot.style.width = width + 'px';              // the row keeps this space
+    // Distance from the row's right edge to the slot's right edge (the bell + gap).
+    var right = row.clientWidth - (slot.offsetLeft + slot.offsetWidth);
+    var height = pillHeight();
+    setBox(island, width, height, right);
+    // Half the height looks the same as a full pill but animates smoothly.
+    island.style.borderRadius = (height / 2) + 'px';
+    setBox(trigger, width, height, right);
+  }
+
+  function applyOpenGeometry() {
+    var width = row.clientWidth;                  // full Home content width (361)
+    var height = card.offsetHeight;               // measured card content height
+    setBox(island, width, height, 0);
+    island.style.borderRadius = cssNumber('--radius-xl', 24) + 'px';
+    setBox(trigger, width, pillHeight(), 0);      // top strip of the card closes it
+  }
+
+  // Reduced motion: no morph. Hide the island, jump to the new size, fade in.
+  function changeGeometry(applyFn) {
+    if (!reduceMotion.matches) { applyFn(); return; }
+    island.classList.add('is-fading');
+    applyFn();
+    void island.offsetWidth;                      // force layout so the fade starts from 0
+    island.classList.remove('is-fading');
+  }
+
+  function openIsland() {
+    if (isOpen) return;
+    isOpen = true;
+    card.inert = false;
+    card.removeAttribute('aria-hidden');
+    island.dataset.open = 'true';
+    trigger.setAttribute('aria-expanded', 'true');
+    moveTabPill(false);
+    changeGeometry(applyOpenGeometry);
+  }
+
+  function closeIsland(returnFocus) {
+    if (!isOpen) return;
+    isOpen = false;
+    if (returnFocus) trigger.focus();             // move focus out before the card becomes inert
+    card.inert = true;
+    card.setAttribute('aria-hidden', 'true');
+    island.dataset.open = 'false';
+    trigger.setAttribute('aria-expanded', 'false');
+    changeGeometry(applyClosedGeometry);
+  }
+
+  trigger.addEventListener('click', function () {
+    if (isOpen) closeIsland(true); else openIsland();
+  });
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && isOpen) closeIsland(true);
+  });
+
+  // Close on a tap outside the island
+  document.addEventListener('pointerdown', function (event) {
+    if (!isOpen) return;
+    if (island.contains(event.target) || trigger.contains(event.target)) return;
+    closeIsland(false);
+  });
+
+  // Close when keyboard focus leaves the card (e.g. Tab to the bell underneath)
+  island.addEventListener('focusout', function (event) {
+    var next = event.relatedTarget;
+    if (!isOpen || !next) return;
+    if (island.contains(next) || next === trigger) return;
+    closeIsland(false);
+  });
+
+  // =====================================================================
+  // Motion recipes from the transitions.dev reference
+  // =====================================================================
+
+  // Digit pop-in: only the digits that changed animate, with a small stagger.
+  function setDigits(group, text) {
+    var previous = group.textContent.replace(/\s+/g, '');
+    if (previous === text) return;
+    var sameCount = 0;
+    while (sameCount < previous.length && sameCount < text.length && previous[sameCount] === text[sameCount]) sameCount++;
+    group.classList.remove('is-animating');
+    group.replaceChildren();
+    var chars = text.split('');
+    chars.forEach(function (ch, i) {
+      var span = document.createElement('span');
+      span.className = 't-digit';
+      span.textContent = ch;
+      if (i < sameCount) span.dataset.same = '';
+      if (i === chars.length - 2) span.dataset.stagger = '1';
+      else if (i === chars.length - 1) span.dataset.stagger = '2';
+      group.appendChild(span);
+    });
+    void group.offsetHeight;                      // restart the animation
+    group.classList.add('is-animating');
+  }
+
+  // Text swap: old text leaves upward, new text enters from below.
+  function swapText(el, next) {
+    var target = el.dataset.next || el.textContent;
+    if (target === next) return;
+    el.dataset.next = next;
+    clearTimeout(el._swapTimer);
+    el.classList.remove('is-enter-start');
+    el.classList.add('is-exit');
+    el._swapTimer = setTimeout(function () {
+      el.textContent = next;
+      el.classList.remove('is-exit');
+      el.classList.add('is-enter-start');
+      void el.offsetHeight;
+      el.classList.remove('is-enter-start');
+    }, reduceMotion.matches ? 0 : cssNumber('--text-swap-dur', 150));
+  }
+
+  // Text morph: keep the shared start and end letters ("Wedn|esday" ->
+  // "Thur|sday" keeps "sday"), and cross-fade only the middle part.
+  function morphText(el, next) {
+    var previous = el.dataset.text != null ? el.dataset.text : el.textContent;
+    if (previous === next) return;
+    el.dataset.text = next;
+    clearTimeout(el._morphTimer);
+    if (reduceMotion.matches) { el.textContent = next; return; }
+    var start = 0;
+    while (start < previous.length && start < next.length && previous[start] === next[start]) start++;
+    var end = 0;
+    while (end < previous.length - start && end < next.length - start &&
+           previous[previous.length - 1 - end] === next[next.length - 1 - end]) end++;
+    var swap = document.createElement('span');
+    swap.className = 't-morph-swap';
+    var oldPart = document.createElement('span');
+    oldPart.className = 't-morph-old';
+    oldPart.setAttribute('aria-hidden', 'true');
+    oldPart.textContent = previous.slice(start, previous.length - end);
+    var newPart = document.createElement('span');
+    newPart.className = 't-morph-new';
+    newPart.textContent = next.slice(start, next.length - end);
+    swap.append(oldPart, newPart);
+    el.textContent = '';
+    el.append(next.slice(0, start), swap, next.slice(next.length - end));
+    swap.style.width = oldPart.getBoundingClientRect().width + 'px';
+    void swap.offsetWidth;
+    swap.classList.add('is-morphing');
+    swap.style.width = newPart.getBoundingClientRect().width + 'px';
+    el._morphTimer = setTimeout(function () {
+      el.textContent = next;
+    }, Math.max(cssNumber('--text-morph-dur', 180), cssNumber('--text-morph-resize-dur', 240)) + 40);
+  }
+
+  // =====================================================================
+  // Day tabs
+  // =====================================================================
+  var tabs = FORECAST.map(function (day, i) {
+    var tab = document.createElement('button');
+    tab.type = 'button';
+    tab.className = 'tab';
+    tab.id = 'weather-tab-' + i;
+    tab.setAttribute('role', 'tab');
+    tab.setAttribute('aria-controls', 'weather-panel');
+    tab.setAttribute('aria-selected', i === 0 ? 'true' : 'false');
+    tab.tabIndex = i === 0 ? 0 : -1;
+    // The accessible name says the weather in words, so color is never the only signal.
+    tab.setAttribute('aria-label', day.day + ', ' + day.condition + ', ' + day.temp + ' degrees');
+    tab.innerHTML =
+      '<svg class="icon icon-xs" viewBox="0 0 24 24" aria-hidden="true"><path d="' + ICON_PATHS[day.icon] + '"/></svg>' +
+      '<span aria-hidden="true">' + day.label + '</span>';
+    tab.addEventListener('click', function () { selectDay(i, false); });
+    tabBar.appendChild(tab);
+    return tab;
+  });
+
+  function moveTabPill(animate) {
+    var tab = tabs[currentDay];
+    if (!animate) {
+      var saved = tabPill.style.transition;
+      tabPill.style.transition = 'none';
+      tabPill.style.transform = 'translateX(' + tab.offsetLeft + 'px)';
+      tabPill.style.width = tab.offsetWidth + 'px';
+      void tabPill.offsetWidth;
+      tabPill.style.transition = saved;
+    } else {
+      tabPill.style.transform = 'translateX(' + tab.offsetLeft + 'px)';
+      tabPill.style.width = tab.offsetWidth + 'px';
+    }
+  }
+
+  function selectDay(index, moveFocus) {
+    if (index === currentDay) return;
+    currentDay = index;
+    var day = FORECAST[index];
+
+    tabs.forEach(function (tab, k) {
+      tab.setAttribute('aria-selected', k === index ? 'true' : 'false');
+      tab.tabIndex = k === index ? 0 : -1;
+    });
+    if (moveFocus) tabs[index].focus();
+    moveTabPill(true);
+    panel.setAttribute('aria-labelledby', tabs[index].id);
+
+    island.dataset.weather = day.sky;             // sky cross-fade
+    bigIcon.dataset.state = day.icon;             // icon swap
+    morphText(dayEl, day.day);                    // day name morph
+    swapText(condEl, day.condition);              // condition swap
+    setDigits(tempEl, String(day.temp));          // digit pop-in
+    setDigits(highEl, String(day.high));
+    setDigits(lowEl, String(day.low));
+  }
+
+  tabBar.addEventListener('keydown', function (event) {
+    var count = tabs.length;
+    if (event.key === 'ArrowRight') { event.preventDefault(); selectDay((currentDay + 1) % count, true); }
+    else if (event.key === 'ArrowLeft') { event.preventDefault(); selectDay((currentDay - 1 + count) % count, true); }
+  });
+
+  // =====================================================================
+  // Initial layout. Re-measure after the web font loads, because the
+  // pill width depends on the font.
+  // =====================================================================
+  function layout() {
+    if (isOpen) applyOpenGeometry(); else applyClosedGeometry();
+    moveTabPill(false);
+  }
+  function layoutWithoutAnimation() {
+    island.style.transition = 'none';
+    layout();
+    void island.offsetWidth;
+    island.style.transition = '';
+  }
+  layoutWithoutAnimation();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(layoutWithoutAnimation);
+  window.addEventListener('resize', layout);
+})();
+
+/* Touch press helper (from the reference motion.js): a tap holds .is-pressed
+   for at least --press-dur, so the press state is visible even on a quick tap. */
+(function () {
+  var SELECTOR = 'button, [role="tab"]';
+  var minPress = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--press-dur')) || 150;
+  document.addEventListener('pointerdown', function (event) {
+    if (event.pointerType === 'mouse') return;
+    var el = event.target && event.target.closest && event.target.closest(SELECTOR);
+    if (!el || el.disabled) return;
+    var startTime = performance.now();
+    clearTimeout(el._pressTimer);
+    el.classList.add('is-pressed');
+    function release() {
+      document.removeEventListener('pointerup', release, true);
+      document.removeEventListener('pointercancel', release, true);
+      el._pressTimer = setTimeout(function () {
+        el.classList.remove('is-pressed');
+      }, Math.max(0, minPress - (performance.now() - startTime)));
+    }
+    document.addEventListener('pointerup', release, true);
+    document.addEventListener('pointercancel', release, true);
+  }, { passive: true });
+})();
+</script>
+</body>
+</html>

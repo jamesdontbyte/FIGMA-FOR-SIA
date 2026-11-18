@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loc8 · Map page prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<style>
+/* =========================================================================
+   Tokens. Names follow DESIGN.md. Raw values live only in this block.
+   ========================================================================= */
+:root {
+  --bg-default: #FFFFFF;
+  --bg-app: #F1F1F2;
+  --bg-subtle: #F7F8FA;
+  --bg-muted: #F1F3F6;
+  --bg-strong: #D3D8DF;
+  --text-primary: #0F1115;
+  --text-secondary: #5F6877;
+  --text-inverse: #FFFFFF;
+  --primary-default: #0A0A0A;
+  --primary-pressed: #262B35;
+  --accent-default: #1F6FEB;
+  --success-fill: #E3F5EA;  /* semantic/success-fill */
+  --success-ink: #1E8E4F;   /* semantic/success-ink */
+  --route-1: #1F6FEB;       /* R1 · Bugasong */
+  --route-2: #F28C38;       /* R2 · San Jose */
+  --route-3: #2E9E5B;       /* R3 · Patnongon */
+  --scrim: rgba(0, 0, 0, 0.4);
+
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px;
+
+  --layout-frame-width: 393px;
+  --layout-frame-height: 852px;
+  --layout-safe-bottom: 34px;
+  --layout-touch-min: 44px;
+  --size-nav-height: 64px;
+  --size-content-width: 353px;
+  --size-dot-sm: 8px;
+  --size-timeline-line: 4px;
+  --size-stop-dot: 12px;
+  --size-stop-dot-end: 20px;
+  --size-handle-w: 36px;
+  --size-card-w: 320px;
+  --size-card-h: 218px;
+  --size-jeep-marker: 36px;   /* size/handle-w */
+
+  --radius-sm: 12px; --radius-md: 16px; --radius-lg: 20px; --radius-xl: 24px; --radius-2xl: 28px; --radius-pill: 999px;
+
+  --shadow-raised: 0 8px 24px rgba(15, 17, 21, 0.10);
+  --shadow-soft: 0 4px 16px rgba(15, 17, 21, 0.06);
+
+  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --sheet-dur: 320ms;
+  --ui-dur: 200ms;
+  --press-scale: 0.97;
+  --press-dur: 150ms;
+  --route-tint-mix: 16%;
+}
+
+/* =========================================================================
+   Page and phone frame
+   ========================================================================= */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  min-height: 100vh; display: grid; place-items: center;
+  background: var(--bg-subtle);
+  font-family: var(--font-sans); color: var(--text-primary);
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+:where(button) {
+  font: inherit; color: inherit; padding: 0; margin: 0;
+  border: 0;          /* reset the browser default, not a design border */
+  background: none; cursor: pointer; text-align: left;
+}
+:where(button):focus-visible { outline: none; } /* focus is shown by fill change instead */
+svg { display: block; flex: none; }
+a { color: inherit; text-decoration: none; }
+
+.phone {
+  position: relative;
+  width: var(--layout-frame-width); height: var(--layout-frame-height);
+  background: var(--bg-app);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-raised);
+  overflow: hidden;
+}
+@media (max-width: 430px) {
+  body { display: block; }
+  .phone { width: 100%; border-radius: 0; box-shadow: none; }
+}
+
+/* Route colors, shared by every element that needs one */
+[data-route="r1"] { --rc: var(--route-1); }
+[data-route="r2"] { --rc: var(--route-2); }
+[data-route="r3"] { --rc: var(--route-3); }
+[data-route] { --rc-tint: color-mix(in srgb, var(--rc) var(--route-tint-mix), var(--bg-default)); }
+
+/* =========================================================================
+   Map (MapLibre GL)
+   ========================================================================= */
+#map { position: absolute; inset: 0; z-index: 0; font-family: var(--font-sans); background: var(--bg-app); }
+.maplibregl-canvas:focus, .maplibregl-map:focus { outline: none; }
+.maplibregl-ctrl-attrib { font-size: 10px; line-height: 14px; }
+
+/* Markers are buttons: MapLibre moves the outer element, visuals live on the inner one */
+.marker { display: block; }
+.marker:focus-visible > * { filter: brightness(0.85); }
+
+/* Stop pin: ring marker made of two fills (route color + white core) */
+.marker-stop { z-index: 1; }
+.pin { position: relative; width: var(--size-stop-dot); height: var(--size-stop-dot); border-radius: 50%; background: var(--rc); transition: transform var(--ui-dur) var(--ease-smooth-out); }
+.marker-stop::before { content: ""; position: absolute; inset: -16px; }          /* 44 px touch area */
+.pin::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--bg-default); }
+.pin.is-end { width: var(--size-stop-dot-end); height: var(--size-stop-dot-end); }
+.pin.is-end::after { inset: 5px; }
+.pin.is-selected::after { background: var(--rc); }   /* filled = selected */
+.pin.is-selected { transform: scale(1.2); }
+
+/* Stop callout: white label above the selected stop (from AssestRef/map stops.jpg) */
+.callout-wrap { z-index: 3; pointer-events: none; }
+.callout {
+  position: relative;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-default); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raised);
+  font-size: 14px; line-height: 20px; font-weight: 600; /* type/body, 600 */
+  white-space: nowrap;
+}
+.callout::after {  /* tail */
+  content: ""; position: absolute; left: 50%; top: 100%; margin-left: -6px;
+  width: 12px; height: 7px; background: var(--bg-default);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+/* Jeepney marker: Figma Map/Markers "Jeepney Live" (white 36 px circle, Icon/jeepney-v2), icon recolored to the route color */
+.marker-jeep { z-index: 4; }
+.jeep-pin {
+  width: var(--size-jeep-marker); height: var(--size-jeep-marker);
+  display: grid; place-items: center;
+  border-radius: 50%; background: var(--bg-default); color: var(--rc);
+  box-shadow: var(--shadow-soft);
+  transition: transform var(--ui-dur) var(--ease-smooth-out);
+}
+.jeep-pin.is-active { transform: scale(1.2); }
+
+/* =========================================================================
+   Card deck (Card/Jeepney from Figma, 320 wide) as a swipe carousel
+   ========================================================================= */
+.deck {
+  position: absolute; z-index: 2; left: 0; right: 0;
+  bottom: calc(var(--layout-safe-bottom) + var(--space-3) + var(--size-nav-height) + var(--space-5) - var(--space-4));
+  height: calc(var(--size-card-h) + 2 * var(--space-4));   /* room for the card shadow */
+  display: flex; gap: var(--space-3);
+  padding: var(--space-4) calc((var(--layout-frame-width) - var(--size-card-w)) / 2);
+  overflow-x: auto; overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory; scrollbar-width: none;
+  touch-action: pan-x;
+}
+.deck::-webkit-scrollbar { display: none; }
+.card {
+  flex: none; width: var(--size-card-w); height: var(--size-card-h);
+  scroll-snap-align: center; scroll-snap-stop: always;
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--bg-default); border-radius: var(--radius-xl); box-shadow: var(--shadow-soft);
+}
+.card-top { display: flex; flex-direction: column; gap: var(--space-1); }
+.card-row { display: flex; align-items: flex-start; justify-content: space-between; }
+.chip {
+  height: 24px; padding: 0 var(--space-3);
+  display: inline-flex; align-items: center;
+  border-radius: var(--radius-pill); background: var(--rc-tint);
+  font-size: 12px; line-height: 16px; font-weight: 500; /* type/caption */
+}
+.eta-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.eta { font-size: 14px; line-height: 20px; font-weight: 600; white-space: nowrap; } /* type/body, 600 */
+.status {
+  height: 24px; padding: 0 var(--space-3);
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  border-radius: var(--radius-pill); background: var(--success-fill); color: var(--success-ink);
+  font-size: 12px; line-height: 16px; font-weight: 500;
+}
+.status::before { content: ""; width: var(--size-dot-sm); height: var(--size-dot-sm); border-radius: 50%; background: var(--success-ink); }
+.card-dest { margin: 0; font-size: 18px; line-height: 26px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* type/h3 */
+.progress { display: flex; flex-direction: column; gap: var(--space-1); }
+.track { position: relative; height: 14px; }
+.track::before { content: ""; position: absolute; left: 0; right: 0; top: 5px; height: 4px; border-radius: var(--radius-pill); background: var(--bg-strong); }
+.track-fill { position: absolute; left: 0; top: 5px; height: 4px; border-radius: var(--radius-pill); background: var(--rc); }
+.track-dot { position: absolute; top: 0; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: var(--rc); }
+.track-dot::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--bg-default); }
+.caption { font-size: 12px; line-height: 16px; font-weight: 500; color: var(--text-secondary); }
+.card-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding-top: var(--space-1); }
+.next { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.next-name { width: 195px; max-width: 100%; font-size: 14px; line-height: 20px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.see-more {
+  flex: none; height: var(--layout-touch-min); padding: 0 var(--space-1);
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  border-radius: var(--radius-md);
+  color: var(--accent-default);
+  font-size: 14px; line-height: 20px; font-weight: 600;
+  transition: background-color var(--ui-dur) ease-out, transform var(--press-dur) var(--ease-smooth-out);
+}
+.see-more:focus-visible { background: var(--bg-muted); }
+
+/* =========================================================================
+   Bottom nav (Nav/Commuter), Map active
+   ========================================================================= */
+.nav {
+  position: absolute; z-index: 3; left: 50%;
+  bottom: calc(var(--layout-safe-bottom) + var(--space-3));
+  transform: translateX(-50%);
+  width: var(--size-content-width); height: var(--size-nav-height);
+  display: flex; gap: var(--space-3);
+}
+.nav-pill {
+  flex: 1; display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-1);
+  background: var(--bg-default); border-radius: var(--radius-pill); box-shadow: var(--shadow-raised);
+}
+.tab {
+  width: var(--layout-touch-min); height: 56px; display: grid; place-items: center;
+  color: var(--text-secondary); border-radius: var(--radius-pill);
+}
+.tab.is-active {
+  width: auto; padding: 0 var(--space-4);
+  display: flex; align-items: center; gap: var(--space-2);
+  background: var(--primary-default); color: var(--text-inverse);
+  font-size: 12px; line-height: 16px; font-weight: 600;
+}
+.action {
+  width: var(--size-nav-height); height: var(--size-nav-height); flex: none;
+  display: grid; place-items: center;
+  border-radius: var(--radius-pill); background: var(--primary-default); color: var(--text-inverse);
+  box-shadow: var(--shadow-raised);
+  transition: background-color var(--ui-dur) ease-out, transform var(--press-dur) var(--ease-smooth-out);
+}
+.action:focus-visible { background: var(--primary-pressed); }
+
+/* =========================================================================
+   "See more" bottom sheet (DESIGN.md 6.4)
+   ========================================================================= */
+.scrim {
+  position: absolute; inset: 0; z-index: 5;
+  background: var(--scrim); opacity: 0; pointer-events: none;
+  transition: opacity var(--sheet-dur) var(--ease-smooth-out);
+}
+.phone[data-sheet="open"] .scrim { opacity: 1; pointer-events: auto; }
+.sheet {
+  position: absolute; z-index: 6; left: 0; right: 0; bottom: 0;
+  max-height: 640px; display: flex; flex-direction: column;
+  padding-bottom: var(--layout-safe-bottom);
+  background: var(--bg-default);
+  border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+  box-shadow: var(--shadow-raised);
+  transform: translateY(100%);
+  transition: transform var(--sheet-dur) var(--ease-smooth-out);
+}
+.phone[data-sheet="open"] .sheet { transform: none; }
+.handle { width: var(--size-handle-w); height: 4px; margin: var(--space-2) auto 0; border-radius: var(--radius-pill); background: var(--bg-strong); }
+.sheet-head { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-5) var(--space-3); }
+.sheet-title { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sheet-title h2 { margin: 0; font-size: 18px; line-height: 26px; font-weight: 600; }
+.mono-tag { font-family: var(--font-mono); font-size: 10px; line-height: 14px; font-weight: 500; letter-spacing: 0.04em; color: var(--text-secondary); }
+.iconbutton {
+  width: var(--layout-touch-min); height: var(--layout-touch-min); flex: none;
+  display: grid; place-items: center; border-radius: 50%;
+  background: var(--bg-default); box-shadow: var(--shadow-soft);
+  transition: background-color var(--ui-dur) ease-out, transform var(--press-dur) var(--ease-smooth-out);
+}
+.iconbutton:focus-visible { background: var(--bg-muted); }
+.sheet-scroll { overflow-y: auto; overscroll-behavior: contain; padding: 0 var(--space-3) var(--space-3); }
+
+/* Stop timeline (copied from prototype/destination-island, read-only here) */
+.stops { padding: var(--space-2) 0 var(--space-1); }
+.stop {
+  position: relative; min-height: var(--layout-touch-min);
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-2) var(--space-3); border-radius: var(--radius-md);
+}
+.rail { position: relative; align-self: stretch; width: var(--size-stop-dot-end); flex: none; display: grid; place-items: center; }
+.rail::before {
+  content: ""; position: absolute;
+  top: calc(-1 * var(--space-2)); bottom: calc(-1 * var(--space-2));
+  left: 50%; width: var(--size-timeline-line); transform: translateX(-50%);
+  background: var(--rc);
+}
+.stop:first-child .rail::before { top: 50%; }
+.stop:last-child .rail::before { bottom: 50%; }
+.stop-dot { position: relative; width: var(--size-stop-dot); height: var(--size-stop-dot); border-radius: 50%; background: var(--rc); }
+.stop-dot::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--bg-default); }
+.stop.is-end .stop-dot { width: var(--size-stop-dot-end); height: var(--size-stop-dot-end); }
+.stop.is-end .stop-dot::after { inset: 5px; }
+.stop-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.stop-name { font-size: 14px; line-height: 20px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stop.is-end .stop-name { font-weight: 600; }
+.stop-note { font-size: 12px; line-height: 16px; font-weight: 500; color: var(--text-secondary); }
+.jeep {
+  flex: none; height: 24px; padding: 0 var(--space-2);
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  border-radius: var(--radius-pill); background: var(--rc-tint);
+  font-family: var(--font-mono); font-size: 11px; line-height: 15px; font-weight: 500;
+}
+.jeep::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--rc); }
+
+/* Press feedback (held at least --press-dur) */
+.is-pressed { transform: scale(var(--press-scale)); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+  .is-pressed { transform: none; }
+  .sheet { transform: none; opacity: 0; pointer-events: none; transition: opacity 150ms linear !important; }
+  .phone[data-sheet="open"] .sheet { opacity: 1; pointer-events: auto; }
+  .scrim { transition: opacity 150ms linear !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="phone" data-sheet="closed">
+  <div id="map"></div>
+
+  <div class="deck" id="deck" role="group" aria-label="Jeepneys, swipe to switch"></div>
+
+  <nav class="nav" id="nav" aria-label="Main">
+    <div class="nav-pill">
+      <a class="tab" aria-label="Home" data-icon="home"></a>
+      <a class="tab is-active" aria-current="page" data-icon="map">Map</a>
+      <a class="tab" aria-label="Activity" data-icon="activity"></a>
+      <a class="tab" aria-label="Profile" data-icon="user-circle"></a>
+    </div>
+    <button class="action" type="button" aria-label="Pick destination" data-icon="plus" data-press></button>
+  </nav>
+
+  <div class="scrim" id="scrim" aria-hidden="true"></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" inert aria-hidden="true">
+    <div class="handle"></div>
+    <div class="sheet-head">
+      <div class="sheet-title">
+        <h2 id="sheet-title"></h2>
+        <span class="mono-tag" id="sheet-meta"></span>
+      </div>
+      <button class="iconbutton" id="sheet-close" type="button" aria-label="Close" data-icon="x" data-press></button>
+    </div>
+    <div class="sheet-scroll"><div class="stops" id="sheet-stops"></div></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ---------------------------------------------------------------------
+  // PLACEHOLDER MOCK DATA. Stop names, jeepney IDs, ETAs and fares are made up.
+  // `line` follows the real road (OSRM routing between approximate town centers,
+  // simplified to 15 m). `stops` sit on that line at the distance fractions in
+  // `stopAt`; `jeepAt` is how far along the route the jeepney is.
+  // Replace with the real stop list and live positions later.
+  // Coordinates are [longitude, latitude].
+  // ---------------------------------------------------------------------
+  var ROUTE_GEO = {"r1":{"line":[[122.04967,11.04992],[122.05108,11.0442],[122.06042,11.04389],[122.06037,11.04321],[122.06165,11.04312],[122.06077,11.04165],[122.05935,11.03835],[122.05231,11.01792],[122.05173,11.01708],[122.04974,11.01042],[122.04905,11.00712],[122.0483,11.00638],[122.04651,11.00548],[122.04396,11.00546],[122.04183,11.00425],[122.04077,11.00181],[122.03749,10.99568],[122.03683,10.99301],[122.03564,10.98993],[122.03451,10.98807],[122.03352,10.98703],[122.03298,10.98578],[122.03135,10.98519],[122.02793,10.98197],[122.02598,10.97899],[122.02229,10.97431],[122.01979,10.97165],[122.01855,10.96915],[122.01657,10.96649],[122.00838,10.95724],[122.00842,10.95678],[122.0115,10.94987],[122.01167,10.94902],[122.01141,10.94821],[122.00673,10.94241],[122.00632,10.94216],[122.00245,10.94172],[122.00188,10.94134],[122.00133,10.94043],[122.00072,10.94109],[121.99694,10.94314],[121.99432,10.94016],[121.99271,10.94148],[121.99432,10.94016],[121.99694,10.94314],[122.00072,10.94109],[122.00133,10.94043],[121.99516,10.92996],[121.99538,10.926],[121.99787,10.91669],[121.99443,10.91425],[121.99391,10.91352],[121.99339,10.91376],[121.9923,10.91162],[121.98258,10.90075],[121.97808,10.88942],[121.97149,10.87404],[121.96937,10.86978],[121.96355,10.85547],[121.95986,10.84783],[121.95992,10.84664],[121.95962,10.84532],[121.95983,10.83688],[121.96008,10.83625],[121.9626,10.83301],[121.96365,10.83209],[121.98499,10.81959],[121.98635,10.81853],[121.98781,10.81633],[121.98829,10.81451],[121.99212,10.77933],[121.99189,10.77907],[121.98481,10.77614],[121.97147,10.77092],[121.96859,10.76952],[121.96121,10.76532],[121.95206,10.76124],[121.94221,10.75654],[121.94158,10.756],[121.94128,10.7493],[121.94064,10.75038],[121.94007,10.75034]],"stops":[[122.04967,11.04992],[122.04601,11.00543],[121.99673,10.93268],[121.96508,10.85943],[121.9909,10.7911],[121.94007,10.75034]],"fr":[0,0.14,0.42,0.62,0.82,1],"jeep":[121.97676,10.88651],"jf":0.55,"km":46.5},"r2":{"line":[[121.94007,10.75034],[121.94064,10.75038],[121.94128,10.7493],[121.94158,10.756],[121.94221,10.75654],[121.95206,10.76124],[121.96121,10.76532],[121.96859,10.76952],[121.97147,10.77092],[121.98481,10.77614],[121.99189,10.77907],[121.99212,10.77933],[121.98829,10.81451],[121.98781,10.81633],[121.98635,10.81853],[121.98499,10.81959],[121.96365,10.83209],[121.9626,10.83301],[121.95987,10.83671],[121.95962,10.84532],[121.95992,10.84664],[121.9599,10.848],[121.96355,10.85547],[121.96937,10.86978],[121.97149,10.87404],[121.97808,10.88942],[121.98218,10.90002],[121.98293,10.90117],[121.9923,10.91162],[121.99339,10.91376],[121.99391,10.91352],[121.99443,10.91425],[121.99787,10.91669],[121.99538,10.926],[121.99516,10.92996],[122.00133,10.94043],[122.00072,10.94109],[121.99694,10.94314],[121.99432,10.94016],[121.99271,10.94148]],"stops":[[121.94007,10.75034],[121.96253,10.76613],[121.99051,10.79463],[121.9646,10.85819],[121.98707,10.90579],[121.99271,10.94148]],"fr":[0,0.12,0.3,0.6,0.8,1],"jeep":[121.98804,10.81561],"jf":0.38,"km":17.3},"r3":{"line":[[121.99271,10.94148],[121.99432,10.94016],[121.99694,10.94314],[122.00072,10.94109],[122.00133,10.94043],[122.00188,10.94134],[122.00245,10.94172],[122.00632,10.94216],[122.00673,10.94241],[122.01141,10.94821],[122.01167,10.94902],[122.0115,10.94987],[122.00842,10.95678],[122.00838,10.95724],[122.01657,10.96649],[122.01855,10.96915],[122.01979,10.97165],[122.02229,10.97431],[122.02598,10.97899],[122.02793,10.98197],[122.03135,10.98519],[122.03298,10.98578],[122.03352,10.98703],[122.03451,10.98807],[122.03564,10.98993],[122.03683,10.99301],[122.03749,10.99568],[122.04077,11.00181],[122.04183,11.00425],[122.04396,11.00546],[122.04651,11.00548],[122.0483,11.00638],[122.04905,11.00712],[122.04974,11.01042],[122.05173,11.01708],[122.05231,11.01792],[122.05935,11.03835],[122.06077,11.04165],[122.06165,11.04312],[122.06037,11.04321],[122.06042,11.04389],[122.05108,11.0442],[122.04967,11.04992]],"stops":[[121.99271,10.94148],[122.0051,10.94202],[122.01663,10.96658],[122.03869,10.99797],[122.05649,11.02994],[122.04967,11.04992]],"fr":[0,0.1,0.3,0.55,0.8,1],"jeep":[122.01077,10.95137],"jf":0.18,"km":0}};
+  var ROUTES = [
+    { id: 'r1', code: 'R1', from: 'Bugasong', to: 'San Jose', jeepId: 'J-014', eta: '4 min away', etaMin: '4 MIN', fare: '₱15.00',
+      stops: ['Bugasong Terminal', 'Bugasong Public Market', 'Patnongon Town Plaza', 'Antique Provincial Capitol', 'San Jose Hospital Road', 'San Jose Terminal'] },
+    { id: 'r2', code: 'R2', from: 'San Jose', to: 'Patnongon', jeepId: 'J-021', eta: '7 min away', etaMin: '7 MIN', fare: '₱20.00',
+      stops: ['San Jose Terminal', 'San Jose Public Market', 'San Jose Hospital Road', 'Patnongon Coastal Road', 'Patnongon Elementary School', 'Patnongon Town Plaza'] },
+    { id: 'r3', code: 'R3', from: 'Patnongon', to: 'Bugasong', jeepId: 'J-007', eta: '11 min away', etaMin: '11 MIN', fare: '₱15.00',
+      stops: ['Patnongon Terminal', 'Patnongon Town Plaza', 'Patnongon Parish Church', 'Bugasong Highway Junction', 'Bugasong Public Market', 'Bugasong Terminal'] }
+  ];
+  ROUTES.forEach(function (route) {
+    var geo = ROUTE_GEO[route.id];
+    route.line = geo.line; route.coords = geo.stops; route.stopAt = geo.fr;
+    route.jeepAt = geo.jf; route.jeepCoord = geo.jeep;
+    route.nextStop = route.stopAt.findIndex(function (f) { return f > route.jeepAt; });   // first stop the jeepney has not reached
+    route.stopsAway = route.stops.length - route.nextStop;
+  });
+
+  // Lucide icon paths (ISC License). 24 px grid, 1.75 stroke, round caps and joins.
+  var ICONS = {
+    plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+    x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    'chevron-right': '<path d="m9 18 6-6-6-6"/>',
+    home: '<path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+    map: '<path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/>',
+    activity: '<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>',
+    'user-circle': '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"/>',
+    bus: '<path d="M8 6v6"/><path d="M15 6v6"/><path d="M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/>'
+  };
+  // Icon/jeepney-v2 from Figma (28 x 12.6), body fill is currentColor so each marker takes its route color
+  var JEEPNEY_ICON = '<svg width="28" height="12.6" viewBox="0 0 28 12.6" fill="none" aria-hidden="true"><g clip-path="url(#clip0_0_26)"><path d="M0.7 3.26667C0.7 2.17778 1.32222 1.63333 2.56667 1.63333H19.8333C21.0778 1.63333 21.7 1.94444 21.7 2.56667V3.5H20.0667L19.8333 5.13333H23.5667C24.8111 4.97778 25.6667 5.28889 26.1333 6.06667V7.93333H27.3C27.6111 7.93333 27.7667 8.08889 27.7667 8.4V9.33333C27.7667 9.64444 27.6111 9.8 27.3 9.8H1.16667C0.855555 9.8 0.7 9.64444 0.7 9.33333V3.26667Z" fill="currentColor"/><path d="M1.05 8.4H0.35C0.1567 8.4 -5.96046e-08 8.5567 -5.96046e-08 8.75V8.98333C-5.96046e-08 9.17663 0.1567 9.33333 0.35 9.33333H1.05C1.2433 9.33333 1.4 9.17663 1.4 8.98333V8.75C1.4 8.5567 1.2433 8.4 1.05 8.4Z" fill="currentColor"/><path d="M1.86667 3.26667H16.3333C16.6444 3.26667 16.8 3.42222 16.8 3.73333V6.3H1.86667V3.26667Z" fill="white"/><path d="M6.16 3.26667H5.6V6.3H6.16V3.26667Z" fill="currentColor"/><path d="M10.36 3.26667H9.8V6.3H10.36V3.26667Z" fill="currentColor"/><path d="M17.5 3.73333H19.3667L19.1333 5.83333H17.5V3.73333Z" fill="white"/><path d="M19.39 7.46667H2.07667C1.96069 7.46667 1.86667 7.56069 1.86667 7.67667C1.86667 7.79265 1.96069 7.88667 2.07667 7.88667H19.39C19.506 7.88667 19.6 7.79265 19.6 7.67667C19.6 7.56069 19.506 7.46667 19.39 7.46667Z" fill="white"/><path d="M27.1367 8.28333H26.4133C26.3231 8.28333 26.25 8.35646 26.25 8.44667C26.25 8.53687 26.3231 8.61 26.4133 8.61H27.1367C27.2269 8.61 27.3 8.53687 27.3 8.44667C27.3 8.35646 27.2269 8.28333 27.1367 8.28333Z" fill="white"/><path d="M24.9667 7C25.3533 7 25.6667 6.6866 25.6667 6.3C25.6667 5.9134 25.3533 5.6 24.9667 5.6C24.5801 5.6 24.2667 5.9134 24.2667 6.3C24.2667 6.6866 24.5801 7 24.9667 7Z" fill="white"/><path d="M5.13333 12.25C6.48643 12.25 7.58333 11.1531 7.58333 9.8C7.58333 8.4469 6.48643 7.35 5.13333 7.35C3.78024 7.35 2.68333 8.4469 2.68333 9.8C2.68333 11.1531 3.78024 12.25 5.13333 12.25Z" fill="white"/><path d="M21.9333 12.25C23.2864 12.25 24.3833 11.1531 24.3833 9.8C24.3833 8.4469 23.2864 7.35 21.9333 7.35C20.5802 7.35 19.4833 8.4469 19.4833 9.8C19.4833 11.1531 20.5802 12.25 21.9333 12.25Z" fill="white"/><path d="M5.13333 11.7833C6.2287 11.7833 7.11667 10.8954 7.11667 9.8C7.11667 8.70464 6.2287 7.81667 5.13333 7.81667C4.03797 7.81667 3.15 8.70464 3.15 9.8C3.15 10.8954 4.03797 11.7833 5.13333 11.7833Z" fill="currentColor"/><path d="M21.9333 11.7833C23.0287 11.7833 23.9167 10.8954 23.9167 9.8C23.9167 8.70464 23.0287 7.81667 21.9333 7.81667C20.838 7.81667 19.95 8.70464 19.95 9.8C19.95 10.8954 20.838 11.7833 21.9333 11.7833Z" fill="currentColor"/><path d="M5.13333 10.5C5.51993 10.5 5.83333 10.1866 5.83333 9.8C5.83333 9.4134 5.51993 9.1 5.13333 9.1C4.74673 9.1 4.43333 9.4134 4.43333 9.8C4.43333 10.1866 4.74673 10.5 5.13333 10.5Z" fill="white"/><path d="M21.9333 10.5C22.3199 10.5 22.6333 10.1866 22.6333 9.8C22.6333 9.4134 22.3199 9.1 21.9333 9.1C21.5467 9.1 21.2333 9.4134 21.2333 9.8C21.2333 10.1866 21.5467 10.5 21.9333 10.5Z" fill="white"/></g><defs><clipPath><rect width="28" height="12.6" fill="white"/></clipPath></defs></svg>';
+  function icon(name, size) {
+    size = size || 24;
+    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+      'stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[name] + '</svg>';
+  }
+  document.querySelectorAll('[data-icon]').forEach(function (el) {
+    el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon));
+  });
+
+  var phone = document.querySelector('.phone');
+  var deck = document.getElementById('deck');
+  var sheet = document.getElementById('sheet');
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var rootStyle = getComputedStyle(document.documentElement);
+  function token(name) { return rootStyle.getPropertyValue(name).trim(); }
+  var ROUTE_TOKEN = { r1: '--route-1', r2: '--route-2', r3: '--route-3' };
+
+  // ---------------------------------------------------------------------
+  // Card deck. Card/Jeepney from Figma (node 335:687): route chip + ETA +
+  // status chip, "From → To", progress bar with the jeepney dot, next stop + fare, See more.
+  // ---------------------------------------------------------------------
+  deck.innerHTML = ROUTES.map(function (route, i) {
+    var pct = Math.round(route.jeepAt * 100);
+    return '<article class="card" data-route="' + route.id + '" data-index="' + i + '" aria-label="' + route.code + ' ' + route.from + ' to ' + route.to + ', jeepney ' + route.jeepId + '">' +
+      '<div class="card-top"><div class="card-row"><span class="chip">' + route.code + '</span>' +
+        '<div class="eta-stack"><span class="eta">' + route.eta + '</span><span class="status">On the way</span></div></div>' +
+        '<h3 class="card-dest">' + route.from + ' → ' + route.to + '</h3></div>' +
+      '<div class="progress"><div class="track" role="img" aria-label="Jeepney is ' + pct + '% of the way">' +
+        '<span class="track-fill" style="width:' + pct + '%"></span><span class="track-dot" style="left:' + pct + '%"></span></div>' +
+        '<span class="caption">' + route.stopsAway + ' stops away</span></div>' +
+      '<div class="card-foot"><div class="next"><span class="caption">Next stop</span>' +
+        '<span class="next-name">' + route.stops[route.nextStop] + '</span>' +
+        '<span class="caption">' + route.fare + ' · ' + route.jeepId + '</span></div>' +
+        '<button class="see-more" type="button" data-press>See more' + icon('chevron-right', 16) + '</button></div>' +
+    '</article>';
+  }).join('');
+  var cards = Array.prototype.slice.call(deck.querySelectorAll('.card'));
+
+  // ---------------------------------------------------------------------
+  // Map. OpenFreeMap vector tiles (free, no API key), recolored to the
+  // Google Maps palette. Labels are symbol layers, hidden below LABELS_MIN_ZOOM.
+  // ---------------------------------------------------------------------
+  var LABELS_MIN_ZOOM = 9;
+  var MAP_PADDING = { top: 70, bottom: 392, left: 40, right: 40 };   // keep the route clear of the card deck
+  var map = new maplibregl.Map({
+    container: 'map',
+    style: 'https://tiles.openfreemap.org/styles/bright',
+    center: [122.0, 10.9], zoom: 10,
+    minZoom: 4, maxZoom: 17,
+    maxBounds: [[116, 4.5], [127, 21.5]],     // the Philippines
+    attributionControl: false, dragRotate: false, pitchWithRotate: false
+  });
+  map.touchZoomRotate.disableRotation();
+  map.addControl(new maplibregl.AttributionControl({ compact: true }), 'top-right');
+
+  // Google Maps default palette
+  var GOOGLE = {
+    land: '#F2EFE9', water: '#AADAFF', park: '#C8E6B0', wood: '#A9D79A', building: '#E6E1D8',
+    road: '#FFFFFF', roadCasing: '#DCD8CF', highway: '#FDE293', highwayCasing: '#E5B95A', sand: '#F5EBC9'
+  };
+  function paint(id, prop, value) { if (map.getLayer(id)) map.setPaintProperty(id, prop, value); }
+  function applyGooglePalette() {
+    paint('background', 'background-color', GOOGLE.land);
+    ['water', 'water-intermittent'].forEach(function (id) { paint(id, 'fill-color', GOOGLE.water); });
+    map.getStyle().layers.forEach(function (layer) {
+      var id = layer.id;
+      if (layer.type === 'line' && /^waterway/.test(id)) paint(id, 'line-color', GOOGLE.water);
+      if (layer.type === 'line' && /^(highway|bridge|tunnel)-/.test(id) && !/path|railway|name|shield/.test(id)) {
+        var casing = /casing/.test(id);
+        var major = /motorway|trunk|primary|link/.test(id);
+        paint(id, 'line-color', casing ? (major ? GOOGLE.highwayCasing : GOOGLE.roadCasing) : (major ? GOOGLE.highway : GOOGLE.road));
+      }
+    });
+    ['park', 'landcover-grass', 'landcover-grass-park'].forEach(function (id) { paint(id, 'fill-color', GOOGLE.park); });
+    paint('landcover-wood', 'fill-color', GOOGLE.wood);
+    paint('landcover-sand', 'fill-color', GOOGLE.sand);
+    paint('building', 'fill-color', GOOGLE.building);
+  }
+
+  // Labels: every text/symbol layer is shown at zoom >= LABELS_MIN_ZOOM and hidden below it
+  var labelsShown = null;
+  function updateLabels() {
+    var show = map.getZoom() >= LABELS_MIN_ZOOM;
+    if (show === labelsShown) return;
+    labelsShown = show;
+    map.getStyle().layers.forEach(function (layer) {
+      if (layer.type === 'symbol') map.setLayoutProperty(layer.id, 'visibility', show ? 'visible' : 'none');
+    });
+  }
+
+  // Marker: MapLibre moves the outer element, so visuals sit on an inner element
+  function makeMarker(className, routeId, label, innerHtml, options) {
+    var el = document.createElement(options.button ? 'button' : 'div');
+    el.className = 'marker ' + className;
+    el.dataset.route = routeId;
+    if (options.button) { el.type = 'button'; el.setAttribute('aria-label', label); }
+    el.innerHTML = innerHtml;
+    return new maplibregl.Marker({ element: el, anchor: options.anchor || 'center', offset: options.offset });
+  }
+
+  var ready = false, active = -1;
+  var jeepMarkers = [], stopMarkers = [], calloutMarker = null;
+
+  // Stops and callout for the active route only
+  function showStops(route, selectedStop) {
+    stopMarkers.forEach(function (m) { m.remove(); });
+    if (calloutMarker) calloutMarker.remove();
+    var last = route.stops.length - 1;
+    stopMarkers = route.stops.map(function (name, i) {
+      var marker = makeMarker('marker-stop', route.id, 'Stop ' + (i + 1) + ': ' + name,
+        '<div class="pin' + (i === 0 || i === last ? ' is-end' : '') + (i === selectedStop ? ' is-selected' : '') + '"></div>', { button: true });
+      marker.setLngLat(route.coords[i]).addTo(map);
+      marker.getElement().addEventListener('click', function (event) { event.stopPropagation(); showStops(route, i); });
+      return marker;
+    });
+    calloutMarker = makeMarker('callout-wrap', route.id, '', '<div class="callout" role="status">' + route.stops[selectedStop] + '</div>',
+      { anchor: 'bottom', offset: [0, -18] });
+    calloutMarker.setLngLat(route.coords[selectedStop]).addTo(map);
+  }
+
+  function select(i, opts) {
+    opts = opts || {};
+    if (opts.scroll) {
+      deck.scrollTo({ left: cards[i].offsetLeft - (deck.clientWidth - cards[i].offsetWidth) / 2, behavior: reduceMotion.matches ? 'auto' : 'smooth' });
+    }
+    if (i === active || !ready) return;
+    active = i;
+    var route = ROUTES[i];
+    ROUTES.forEach(function (r) {
+      var on = r === route;
+      map.setPaintProperty('route-' + r.id, 'line-width', on ? 6 : 3);
+      map.setPaintProperty('route-' + r.id, 'line-opacity', on ? 1 : 0.5);
+    });
+    map.moveLayer('route-' + route.id);        // active route drawn on top where routes overlap
+    jeepMarkers.forEach(function (m, k) { m.getElement().firstChild.classList.toggle('is-active', k === i); });
+    showStops(route, route.nextStop);
+
+    // Frame the whole route so all of its waiting stops are visible above the deck
+    var bounds = route.line.reduce(function (b, p) { return b.extend(p); }, new maplibregl.LngLatBounds(route.line[0], route.line[0]));
+    map.fitBounds(bounds, { padding: MAP_PADDING, duration: opts.instant || reduceMotion.matches ? 0 : 900, maxZoom: 13 });
+  }
+
+  map.on('zoom', updateLabels);
+  map.on('load', function () {
+    applyGooglePalette();
+    updateLabels();
+    ROUTES.forEach(function (route) {
+      map.addSource('route-' + route.id, { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: route.line } } });
+      map.addLayer({
+        id: 'route-' + route.id, type: 'line', source: 'route-' + route.id,
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': token(ROUTE_TOKEN[route.id]), 'line-width': 4, 'line-opacity': 1 }
+      });
+    });
+    // One jeepney per card, filled with its route color
+    jeepMarkers = ROUTES.map(function (route, i) {
+      var marker = makeMarker('marker-jeep', route.id, 'Jeepney ' + route.jeepId + ', route ' + route.code + ' ' + route.from + ' to ' + route.to,
+        '<div class="jeep-pin">' + JEEPNEY_ICON + '</div>', { button: true });
+      marker.setLngLat(route.jeepCoord).addTo(map);
+      marker.getElement().addEventListener('click', function (event) { event.stopPropagation(); select(i, { scroll: true }); });
+      return marker;
+    });
+    ready = true;
+    select(0, { instant: true });
+  });
+
+  // The active card is the one nearest the deck center, read when scrolling stops
+  function cardFromScroll() {
+    var i = Math.round(deck.scrollLeft / (cards[0].offsetWidth + 12));
+    select(Math.max(0, Math.min(cards.length - 1, i)));
+  }
+  if ('onscrollend' in window) deck.addEventListener('scrollend', cardFromScroll);
+  else { var scrollTimer; deck.addEventListener('scroll', function () { clearTimeout(scrollTimer); scrollTimer = setTimeout(cardFromScroll, 120); }); }
+
+  // Mouse users can drag the deck like a swipe (touch already scrolls natively)
+  var dragStartX = 0, dragStartScroll = 0, dragging = false, dragged = false;
+  deck.addEventListener('pointerdown', function (event) {
+    if (event.pointerType !== 'mouse') return;
+    dragging = true; dragged = false; dragStartX = event.clientX; dragStartScroll = deck.scrollLeft;
+  });
+  window.addEventListener('pointermove', function (event) {
+    if (!dragging) return;
+    var dx = event.clientX - dragStartX;
+    if (Math.abs(dx) > 5) { dragged = true; deck.style.scrollSnapType = 'none'; }
+    if (dragged) deck.scrollLeft = dragStartScroll - dx;
+  });
+  window.addEventListener('pointerup', function () {
+    if (!dragging) return;
+    dragging = false;
+    if (!dragged) return;
+    var target = Math.round(deck.scrollLeft / (cards[0].offsetWidth + 12));
+    deck.style.scrollSnapType = '';
+    select(Math.max(0, Math.min(cards.length - 1, target)), { scroll: true });
+  });
+
+  deck.addEventListener('click', function (event) {
+    if (dragged) { dragged = false; return; }
+    var card = event.target.closest('.card');
+    if (!card) return;
+    var i = Number(card.dataset.index);
+    if (event.target.closest('.see-more')) { openSheet(i, event.target.closest('.see-more')); return; }
+    select(i, { scroll: true });
+  });
+
+  // ---------------------------------------------------------------------
+  // "See more" sheet: read-only stop timeline for the route
+  // ---------------------------------------------------------------------
+  var sheetFocusReturn = null;
+  var inertWhileOpen = [document.getElementById('map'), deck, document.getElementById('nav')];
+  function openSheet(i, trigger) {
+    var route = ROUTES[i];
+    var last = route.stops.length - 1;
+    document.getElementById('sheet-title').textContent = route.from + ' → ' + route.to;
+    document.getElementById('sheet-meta').textContent = route.code + ' · 1 LIVE';
+    var list = document.getElementById('sheet-stops');
+    list.dataset.route = route.id;
+    list.innerHTML = route.stops.map(function (name, s) {
+      var note = s === 0 ? 'First stop' : s === last ? 'Last stop' : '';
+      var jeep = s === route.nextStop;       // the jeepney is heading to this stop
+      return '<div class="stop' + (note ? ' is-end' : '') + '">' +
+        '<span class="rail"><span class="stop-dot"></span></span>' +
+        '<span class="stop-text"><span class="stop-name">' + name + '</span>' + (note ? '<span class="stop-note">' + note + '</span>' : '') + '</span>' +
+        (jeep ? '<span class="jeep" aria-label="Jeepney ' + route.jeepId + ' arriving here, ' + route.etaMin.toLowerCase() + ' away">' + route.jeepId + ' · ' + route.etaMin + '</span>' : '') +
+      '</div>';
+    }).join('');
+    sheetFocusReturn = trigger;
+    select(i, { scroll: true });
+    phone.dataset.sheet = 'open';
+    sheet.inert = false;
+    sheet.removeAttribute('aria-hidden');
+    inertWhileOpen.forEach(function (el) { el.inert = true; });
+    document.getElementById('sheet-close').focus({ preventScroll: true });
+  }
+  function closeSheet() {
+    if (phone.dataset.sheet !== 'open') return;
+    phone.dataset.sheet = 'closed';
+    inertWhileOpen.forEach(function (el) { el.inert = false; });
+    if (sheetFocusReturn) sheetFocusReturn.focus({ preventScroll: true });   // focus out before the sheet becomes inert
+    sheet.inert = true;
+    sheet.setAttribute('aria-hidden', 'true');
+  }
+  document.getElementById('sheet-close').addEventListener('click', closeSheet);
+  document.getElementById('scrim').addEventListener('click', closeSheet);
+  document.addEventListener('keydown', function (event) { if (event.key === 'Escape') closeSheet(); });
+
+  // ---------------------------------------------------------------------
+  // Press feedback, held at least --press-dur so quick taps still show it
+  // ---------------------------------------------------------------------
+  var PRESS_MS = 150;
+  document.addEventListener('pointerdown', function (event) {
+    var el = event.target.closest('[data-press]');
+    if (!el || reduceMotion.matches) return;
+    var downAt = performance.now();
+    el.classList.add('is-pressed');
+    function release() {
+      document.removeEventListener('pointerup', release);
+      document.removeEventListener('pointercancel', release);
+      setTimeout(function () { el.classList.remove('is-pressed'); }, Math.max(0, PRESS_MS - (performance.now() - downAt)));
+    }
+    document.addEventListener('pointerup', release);
+    document.addEventListener('pointercancel', release);
+  });
+})();
+</script>
+</body>
+</html>

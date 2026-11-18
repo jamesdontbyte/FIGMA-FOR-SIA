@@ -7,7 +7,7 @@ Figma-first design repo. There is no application code (no package.json, no build
 @specs/overview.md
 
 - `specs/overview.md` is the single source of truth for **what the system does**: users, features, flows, routes, rules.
-- `DESIGN.md` is the single source of truth for **how it looks**: tokens, layout, components, motion. Add a token there before using a new value.
+- `DESIGN.md` is the single source of truth for **how it looks**: tokens, layout, components, motion. Add a token there before using a new value. Long per-component specs live in `design/*.md`, linked from `DESIGN.md` section 11.
 - This file holds only instructions on how to work. It holds no project or design content.
 
 ## Keeping the docs up to date
@@ -23,7 +23,7 @@ Requirements and design change often. When the user discusses a change, decide w
 Rules:
 1. **Update on decisions, not on ideas.** Brainstorming, options and questions do not change the docs. Update when the user decides ("let's do X", "remove Y", "change Z to ..."). If it is unclear whether something is decided, ask.
 2. **Edit the existing text.** Change or remove the old line. Do not add a note next to it, and do not leave the old version behind. Remove anything that is now unused (tokens, components, features).
-3. **Fix every place the change touches.** Check both files and `DESIGN.md` section 11 (component registry) for mentions of the thing you changed, so the files never contradict each other.
+3. **Fix every place the change touches.** Check both files, `DESIGN.md` section 11 (component registry) and any linked `design/*.md` file for mentions of the thing you changed, so the files never contradict each other.
 4. **Keep each file in its lane.** No visual details in `overview.md`. No feature or business rules in `DESIGN.md`. If a rule about the system shows up in `DESIGN.md`, move it to `overview.md`.
 5. **If the two files conflict, stop and ask** the user which is correct. Do not pick one silently.
 6. **Tell the user what changed.** After editing, give a short list: file, section, what changed. For a big or risky change (removing a feature, changing a token used in many places), say what it affects and ask before editing.

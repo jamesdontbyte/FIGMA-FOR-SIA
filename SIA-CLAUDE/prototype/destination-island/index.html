@@ -1,0 +1,1868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loc8 · Plus menu, Start waiting and Chat prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* =========================================================================
+   Tokens. Names follow DESIGN.md. Raw values live only in this block.
+   ========================================================================= */
+:root {
+  /* Color */
+  --bg-default: #FFFFFF;
+  --bg-app: #F1F1F2;
+  --bg-subtle: #F7F8FA;
+  --bg-muted: #F1F3F6;
+  --text-primary: #0F1115;
+  --text-secondary: #5F6877;
+  --text-inverse: #FFFFFF;
+  --primary-default: #0A0A0A;
+  --primary-pressed: #262B35;
+  --tint-sky-fill: #E1EFFB;
+  --tint-sky-ink: #1F6FEB;
+  --tint-lavender-fill: #EDE7F8;
+  --tint-lavender-ink: #6B4FB3;
+  --primary-disabled: #D3D8DF;
+  --text-tertiary: #8A92A0;
+  --route-1: #1F6FEB;   /* R1 · Bugasong */
+  --route-2: #F28C38;   /* R2 · San Jose */
+  --route-3: #2E9E5B;   /* R3 · Patnongon */
+  --scrim: rgba(0, 0, 0, 0.4);
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+
+  /* Layout and size */
+  --layout-frame-width: 393px;
+  --layout-frame-height: 852px;
+  --layout-safe-top: 59px;
+  --layout-safe-bottom: 34px;
+  --layout-touch-min: 44px;
+  --size-nav-height: 64px;
+  --size-content-width: 353px;
+  --size-control-md: 48px;
+  --size-icon-xs: 16px;
+  --size-dot-sm: 8px;
+  --size-menu-w: 264px;         /* new token: plus menu width */
+  --size-avatar-md: 40px;
+  --size-timeline-line: 4px;    /* new token: stop timeline rail width */
+  --size-stop-dot: 12px;        /* = size/dot-md + 2, ring stop marker */
+  --size-stop-dot-end: 20px;    /* first / last stop marker */
+  --stroke-icon: 1.75;
+
+  /* Radius */
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-xl: 24px;
+  --radius-2xl: 28px;
+  --radius-pill: 999px;
+
+  /* Elevation */
+  --shadow-raised: 0 8px 24px rgba(15, 17, 21, 0.10);
+  --shadow-soft: 0 4px 16px rgba(15, 17, 21, 0.06);
+
+  /* Type */
+  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Motion */
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --menu-open-dur: 350ms;
+  --menu-close-dur: 250ms;
+  --page-open-dur: 350ms;
+  --content-fade-dur: 250ms;
+  --content-fade-delay: 100ms;
+  --accordion-dur: 250ms;
+  --ui-dur: 200ms;
+  --press-scale: 0.97;
+  --press-dur: 150ms;
+  --ping-dur: 2000ms;
+  --route-tint-mix: 16%;        /* route color at 16% on white, same as Badge/Route */
+}
+
+/* =========================================================================
+   Page and phone frame
+   ========================================================================= */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: var(--bg-subtle);
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+:where(button) {
+  font: inherit; color: inherit; padding: 0; margin: 0;
+  border: 0;          /* reset the browser default, not a design border */
+  background: none; cursor: pointer; text-align: left;
+}
+:where(button):focus-visible { outline: none; } /* focus is shown by fill change instead */
+svg { display: block; flex: none; }
+
+.phone {
+  position: relative;
+  width: var(--layout-frame-width);
+  height: var(--layout-frame-height);
+  background: var(--bg-app);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-raised);
+  overflow: hidden;
+}
+@media (max-width: 430px) {
+  body { display: block; }
+  .phone { width: 100%; border-radius: 0; box-shadow: none; }
+}
+
+/* Scrim behind the open plus menu (Bottom sheet scrim, DESIGN.md 6.4) */
+.scrim {
+  position: absolute; inset: 0;
+  background: var(--scrim);
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--menu-close-dur) var(--ease-smooth-out);
+}
+.phone[data-open="true"] .scrim {
+  opacity: 1; pointer-events: auto;
+  transition-duration: var(--menu-open-dur);
+}
+
+/* =========================================================================
+   Bottom nav (Nav/Commuter): 277 pill + 12 gap + 64 round button
+   ========================================================================= */
+.nav {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--layout-safe-bottom) + var(--space-3));
+  transform: translateX(-50%);
+  width: var(--size-content-width);
+  height: var(--size-nav-height);
+  display: flex;
+  gap: var(--space-3);
+  z-index: 2;
+}
+.nav-pill {
+  flex: 1;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-1);
+  background: var(--bg-default);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-raised);
+}
+.tab {
+  width: var(--layout-touch-min); height: 56px;
+  display: grid; place-items: center;
+  color: var(--text-secondary);
+  border-radius: var(--radius-pill);
+}
+.tab.is-active {
+  width: auto; padding: 0 var(--space-4);
+  display: flex; align-items: center; gap: var(--space-2);
+  background: var(--primary-default);
+  color: var(--text-inverse);
+  font-size: 12px; line-height: 16px; font-weight: 600; /* type/caption, 600 */
+}
+
+/* Round action button (Button/Waiting) */
+.action {
+  position: relative;
+  width: var(--size-nav-height); height: var(--size-nav-height);
+  flex: none;
+  display: grid; place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--primary-default);
+  color: var(--text-inverse);
+  box-shadow: var(--shadow-raised);
+  transition: background-color var(--ui-dur) ease-out, transform var(--press-dur) var(--ease-smooth-out);
+}
+.action:focus-visible { background: var(--primary-pressed); }
+.action .icon-plus { transition: transform var(--ui-dur) ease-out; }
+.phone[data-open="true"] .action .icon-plus { transform: rotate(45deg); } /* plus -> close */
+.action .icon-pin { display: none; }
+.action[data-state="waiting"] { background: var(--primary-pressed); }
+.action[data-state="waiting"] .icon-plus { display: none; }
+.action[data-state="waiting"] .icon-pin { display: block; }
+/* Ping ring: flat fill that grows and fades, not a stroked ring */
+.action::before {
+  content: ""; position: absolute; inset: 0;
+  border-radius: inherit;
+  background: var(--primary-default);
+  opacity: 0; z-index: -1;
+}
+.action[data-state="waiting"]::before { animation: ping var(--ping-dur) var(--ease-smooth-out) infinite; }
+@keyframes ping {
+  0%   { transform: scale(1);     opacity: 0.4; }
+  70%, 100% { transform: scale(1.625); opacity: 0; }  /* 64 -> 104 px, like State=Waiting Pulse */
+}
+
+/* =========================================================================
+   Plus menu (Menu/Plus): grows out of the round button into a small card
+   with two choices, Chat and Start waiting. Reference: AssestRef/NewEvent.jpg
+   ========================================================================= */
+.menu {
+  position: absolute;
+  z-index: 1;
+  right: calc((var(--layout-frame-width) - var(--size-content-width)) / 2);
+  bottom: calc(var(--layout-safe-bottom) + var(--space-3));
+  width: var(--size-nav-height);
+  height: var(--size-nav-height);
+  border-radius: calc(var(--size-nav-height) / 2);
+  background: var(--primary-default);
+  box-shadow: var(--shadow-raised);
+  overflow: hidden;
+  transition-property: width, height, bottom, border-radius, background-color;
+  transition-duration: var(--menu-close-dur);
+  transition-timing-function: var(--ease-smooth-out);
+}
+.phone[data-open="true"] .menu {
+  bottom: calc(var(--layout-safe-bottom) + var(--space-3) + var(--size-nav-height) + var(--space-3));
+  width: var(--size-menu-w);
+  height: calc(2 * 64px + var(--space-1) + 2 * var(--space-2)); /* 2 rows + gap + padding */
+  border-radius: var(--radius-xl);
+  background: var(--bg-default);
+  transition-duration: var(--menu-open-dur);
+}
+.menu-list {
+  position: absolute; top: 0; left: 0;
+  width: var(--size-menu-w);
+  padding: var(--space-2);
+  display: flex; flex-direction: column; gap: var(--space-1); /* no divider lines */
+  opacity: 0;
+  transition: opacity 100ms ease-out;
+}
+.phone[data-open="true"] .menu-list {
+  opacity: 1;
+  transition: opacity var(--content-fade-dur) var(--ease-smooth-out) var(--content-fade-delay);
+}
+.menu-row {
+  width: 100%; height: 64px;
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  transition: background-color var(--ui-dur) ease-out, transform var(--press-dur) var(--ease-smooth-out);
+}
+.menu-row:focus-visible { background: var(--bg-subtle); }
+/* IconCircle/Tint: Sky = time (waiting), Lavender = chat */
+.menu-icon {
+  width: var(--layout-touch-min); height: var(--layout-touch-min); flex: none;
+  display: grid; place-items: center; border-radius: 50%;
+  background: var(--tint-sky-fill); color: var(--tint-sky-ink);
+}
+.menu-icon.is-chat { background: var(--tint-lavender-fill); color: var(--tint-lavender-ink); }
+.menu-text { display: flex; flex-direction: column; min-width: 0; }
+.menu-title { font-size: 16px; line-height: 24px; font-weight: 600; } /* type/body-lg, 600 */
+.menu-sub { font-size: 12px; line-height: 16px; font-weight: 500; color: var(--text-secondary); } /* type/caption */
+
+/* =========================================================================
+   Full-screen pages (Start waiting, Chat). They slide in from the right
+   over Home and the nav, and slide back out to the right.
+   ========================================================================= */
+.page {
+  position: absolute; inset: 0; z-index: 5;
+  display: flex; flex-direction: column;
+  background: var(--bg-default);
+  transform: translateX(100%);
+  visibility: hidden;
+  transition: transform var(--menu-close-dur) var(--ease-smooth-out), visibility 0s linear var(--menu-close-dur);
+}
+.page[data-shown="true"] {
+  transform: none;
+  visibility: visible;
+  transition: transform var(--page-open-dur) var(--ease-smooth-out), visibility 0s;
+}
+/* Title row: back button + title + subtitle. Approved exception to the no-header rule. */
+.page-head {
+  flex: none;
+  display: flex; align-items: center; gap: var(--space-4);
+  padding: var(--layout-safe-top) var(--space-5) var(--space-3);
+}
+.back {
+  width: var(--layout-touch-min); height: var(--layout-touch-min); flex: none;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--bg-default);
+  box-shadow: var(--shadow-soft);
+  transition: background-color var(--ui-dur) ease-out, transform var(--press-dur) var(--ease-smooth-out);
+}
+.back:focus-visible { background: var(--bg-muted); }
+.page-titles { min-width: 0; }
+.dest-title, .page-title { margin: 0; font-size: 28px; line-height: 36px; font-weight: 700; } /* type/h1 */
+.dest-sub, .page-sub { margin: 0; font-size: 14px; line-height: 20px; font-weight: 400; color: var(--text-secondary); } /* type/body */
+.dest-head { flex: none; padding: 0 var(--space-5) var(--space-3); }
+.dest-head .from-row { margin-top: 0; }
+.dest-head:has(.from-row[hidden]) { display: none; }
+
+/* Step 2: the picked From stop, tap to go back and change it */
+.from-row {
+  width: 100%; height: var(--layout-touch-min);
+  margin-top: var(--space-3);
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  font-size: 12px; line-height: 16px; font-weight: 500; /* type/caption */
+  transition: background-color var(--ui-dur) ease-out, transform var(--press-dur) var(--ease-smooth-out);
+}
+.from-row[hidden] { display: none; }
+.from-row:focus-visible { background: var(--bg-muted); }
+.from-row::before { content: ""; width: var(--size-dot-sm); height: var(--size-dot-sm); flex: none; border-radius: 50%; background: var(--rc); }
+.from-label { color: var(--text-secondary); }
+.from-place { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.from-change { font-weight: 600; }
+
+.dest-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 var(--space-5) var(--space-5);
+  display: flex; flex-direction: column; gap: var(--space-2);
+}
+
+/* Route row (location) */
+.route { --rc: var(--route-1); --rc-tint: color-mix(in srgb, var(--rc) var(--route-tint-mix), var(--bg-default)); }
+.route[data-route="r2"] { --rc: var(--route-2); }
+.route[data-route="r3"] { --rc: var(--route-3); }
+
+.route-row {
+  width: 100%; height: 64px;
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  transition: background-color var(--ui-dur) ease-out, transform var(--press-dur) var(--ease-smooth-out);
+}
+.route-row:focus-visible, .route-row[aria-expanded="true"] { background: var(--rc-tint); }
+.route-dot {
+  width: 24px; height: 24px; flex: none;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--rc-tint);
+}
+.route-dot::after {
+  content: ""; width: var(--space-3); height: var(--space-3);
+  border-radius: 50%; background: var(--rc);
+}
+.route-row[aria-expanded="true"] .route-dot { background: var(--bg-default); }
+.route-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.route-name { font-size: 16px; line-height: 24px; font-weight: 600; } /* type/body-lg, 600 */
+.route-meta {
+  font-family: var(--font-mono);
+  font-size: 10px; line-height: 14px; font-weight: 500; letter-spacing: 0.04em; /* type/mono-tag */
+  color: var(--text-secondary);
+}
+.route-count { font-size: 12px; line-height: 16px; font-weight: 500; color: var(--text-secondary); }
+.chev { color: var(--text-secondary); transition: transform var(--accordion-dur) var(--ease-smooth-out); }
+.route-row[aria-expanded="true"] .chev { transform: rotate(180deg); }
+
+/* Accordion panel: grid row 0fr -> 1fr animates to the content's real height */
+.panel {
+  display: grid; grid-template-rows: 0fr;
+  transition: grid-template-rows var(--accordion-dur) var(--ease-smooth-out);
+}
+.route-row[aria-expanded="true"] + .panel { grid-template-rows: 1fr; }
+.panel-inner { overflow: hidden; min-height: 0; }
+
+/* Stop timeline (reference: AssestRef/3a1acc09…jpg) */
+.stops { padding: var(--space-2) 0 var(--space-1); }
+.stop {
+  position: relative;
+  width: 100%; min-height: var(--layout-touch-min);
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  transition: background-color var(--ui-dur) ease-out, transform var(--press-dur) var(--ease-smooth-out);
+}
+.stop:focus-visible { background: var(--bg-subtle); }
+.stop[aria-pressed="true"] { background: var(--rc-tint); }
+.stop:disabled { cursor: default; } /* the From stop, while picking To */
+/* Rail: a filled bar, so no stroke is used. First stop starts at its dot, last stop ends at its dot. */
+.rail { position: relative; align-self: stretch; width: var(--size-stop-dot-end); flex: none; display: grid; place-items: center; }
+.rail::before {
+  content: ""; position: absolute;
+  top: calc(-1 * var(--space-2)); bottom: calc(-1 * var(--space-2));
+  left: 50%; width: var(--size-timeline-line); transform: translateX(-50%);
+  background: var(--rc);
+}
+.stop:first-child .rail::before { top: 50%; }
+.stop:last-child .rail::before { bottom: 50%; }
+/* Ring marker made from two fills: route-color circle + white center */
+.stop-dot {
+  position: relative;
+  width: var(--size-stop-dot); height: var(--size-stop-dot);
+  border-radius: 50%; background: var(--rc);
+}
+.stop-dot::after {
+  content: ""; position: absolute; inset: 3px;
+  border-radius: 50%; background: var(--bg-default);
+}
+.stop.is-end .stop-dot { width: var(--size-stop-dot-end); height: var(--size-stop-dot-end); }
+.stop.is-end .stop-dot::after { inset: 5px; }
+.stop[aria-pressed="true"] .stop-dot::after { background: var(--rc); } /* filled = picked */
+
+.stop-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.stop-name {
+  font-size: 14px; line-height: 20px; font-weight: 400; /* type/body */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.stop.is-end .stop-name, .stop[aria-pressed="true"] .stop-name { font-weight: 600; }
+.stop-note { font-size: 12px; line-height: 16px; font-weight: 500; color: var(--text-secondary); } /* type/caption */
+.jeep {
+  flex: none;
+  height: 24px; padding: 0 var(--space-2);
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--rc-tint);
+  font-family: var(--font-mono);
+  font-size: 11px; line-height: 15px; font-weight: 500; /* type/mono-body */
+}
+.jeep::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--rc); } /* size/dot-xs */
+.stop[aria-pressed="true"] .jeep { background: var(--bg-default); }
+/* From / To tag: text label, so the pick never relies on color alone */
+.pick-tag {
+  display: none; flex: none;
+  height: 24px; padding: 0 var(--space-2);
+  align-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--bg-default);
+  font-size: 12px; line-height: 16px; font-weight: 600; /* type/caption, 600 */
+}
+.stop[data-pick] .pick-tag { display: inline-flex; }
+.stop[data-pick="from"] .pick-tag::before { content: "From"; }
+.stop[data-pick="to"] .pick-tag::before { content: "To"; }
+
+/* Footer: appears once a stop is picked */
+.dest-foot {
+  flex: none;
+  display: grid; grid-template-rows: 0fr;
+  transition: grid-template-rows var(--accordion-dur) var(--ease-smooth-out);
+}
+.dest-foot.is-shown { grid-template-rows: 1fr; }
+.dest-foot-inner { overflow: hidden; min-height: 0; }
+.dest-foot-body { padding: var(--space-3) var(--space-5) var(--layout-safe-bottom); display: flex; flex-direction: column; gap: var(--space-2); }
+.picked { margin: 0; font-size: 12px; line-height: 16px; font-weight: 500; color: var(--text-secondary); }
+.picked strong { color: var(--text-primary); font-weight: 600; }
+
+/* Fare receipt: same tile as the fare card computation (bg/subtle, radius/lg) */
+.receipt {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--bg-subtle);
+  display: flex; flex-direction: column; gap: var(--space-1);
+}
+.fare-type {
+  height: var(--layout-touch-min);
+  display: flex; padding: var(--space-1);
+  margin-bottom: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--bg-muted);
+}
+.fare-type button {
+  /* Size each segment from its label so the long label is not squeezed into half the track */
+  flex: 1 1 auto; display: grid; place-items: center;
+  padding: 0 var(--space-3);
+  white-space: nowrap;
+  border-radius: var(--radius-pill);
+  font-size: 12px; line-height: 16px; font-weight: 600; /* type/caption, 600 */
+  color: var(--text-secondary);
+  transition: background-color var(--ui-dur) ease-out, color var(--ui-dur) ease-out, box-shadow var(--ui-dur) ease-out;
+}
+/* White selected segment, so Start waiting stays the only black fill */
+.fare-type button[aria-pressed="true"] { background: var(--bg-default); color: var(--text-primary); box-shadow: var(--shadow-soft); }
+.fare-type button:focus-visible { color: var(--text-primary); }
+.calc-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.calc-row[hidden] { display: none; }
+.calc-label { font-size: 12px; line-height: 16px; font-weight: 500; color: var(--text-secondary); } /* type/caption */
+.calc-value { font-size: 14px; line-height: 20px; font-weight: 600; } /* type/body, 600 */
+.calc-total { margin-top: var(--space-1); }
+.calc-total .calc-value { font-size: 18px; line-height: 26px; font-weight: 600; } /* type/h3 */
+.btn-primary {
+  width: 100%; height: var(--size-control-md);
+  display: grid; place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--primary-default);
+  color: var(--text-inverse);
+  font-size: 16px; line-height: 24px; font-weight: 600; /* type/body-lg, 600 */
+  transition: background-color var(--ui-dur) ease-out, transform var(--press-dur) var(--ease-smooth-out);
+}
+.btn-primary:focus-visible { background: var(--primary-pressed); }
+
+/* Press feedback (held at least --press-dur) */
+.is-pressed { transform: scale(var(--press-scale)); }
+.btn-primary.is-pressed { background: var(--primary-pressed); }
+
+/* =========================================================================
+   Chat page. Reference: AssestRef/Chat.jpg, with the Loc8 mascot head.
+   ========================================================================= */
+.chat-log {
+  flex: 1; min-height: 0;
+  overflow-y: auto; overscroll-behavior: contain;
+  padding: var(--space-3) var(--space-5) var(--space-5);
+  display: flex; flex-direction: column; gap: var(--space-4);
+}
+.bot-name {
+  display: flex; align-items: center; gap: var(--space-3);
+  font-size: 16px; line-height: 24px; font-weight: 600; /* type/body-lg, 600 */
+}
+.bot-name img { width: var(--size-avatar-md); height: var(--size-avatar-md); flex: none; }
+.msg { margin: 0; font-size: 16px; line-height: 24px; font-weight: 500; } /* type/body-lg */
+.msg + .msg, .bot-name + .msg { margin-top: var(--space-3); }
+.chat-log > .msg { margin: 0; }
+.msg-user {
+  align-self: flex-end;
+  max-width: 80%;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--bg-muted);
+}
+.chat-foot { flex: none; padding: 0 var(--space-5) var(--layout-safe-bottom); }
+/* Composer: Input/Text shell (bg/muted fill, no border), taller for typing */
+.composer {
+  display: flex; align-items: flex-end; gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-xl);
+  background: var(--bg-muted);
+}
+.composer textarea {
+  flex: 1; min-width: 0;
+  height: 72px; resize: none;
+  border: 0; outline: none; background: none; padding: 0; /* browser reset, not a design border */
+  font: inherit; font-size: 16px; line-height: 24px; font-weight: 500; color: var(--text-primary); /* type/body-lg */
+}
+.composer textarea::placeholder { color: var(--text-tertiary); }
+.send {
+  width: var(--size-avatar-md); height: var(--size-avatar-md); flex: none;
+  display: grid; place-items: center; border-radius: 50%;
+  background: var(--primary-default); color: var(--text-inverse);
+  transition: background-color var(--ui-dur) ease-out, color var(--ui-dur) ease-out, transform var(--press-dur) var(--ease-smooth-out);
+}
+.send:disabled { background: var(--primary-disabled); color: var(--text-tertiary); cursor: default; }
+.send:focus-visible { background: var(--primary-pressed); }
+.disclaimer {
+  margin: var(--space-3) 0 0; text-align: center;
+  font-size: 12px; line-height: 16px; font-weight: 500; color: var(--text-secondary); /* type/caption */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+  .is-pressed { transform: none; }
+}
+
+/* =========================================================================
+   Waiting card (from prototype/waiting-card)
+   ========================================================================= */
+:root {
+  /* Color */
+  --bg-default: #FFFFFF;
+  --bg-app: #F1F1F2;
+  --bg-subtle: #F7F8FA;
+  --bg-muted: #F1F3F6;
+  --bg-strong: #D3D8DF;
+  --bg-mascot-band: #262B35;
+  --text-primary: #0F1115;
+  --text-secondary: #5F6877;
+  --text-tertiary: #8A92A0;
+  --text-inverse: #FFFFFF;
+  --primary-default: #0A0A0A;
+  --primary-pressed: #262B35;
+  --status-live: #2E9E5B;
+  --status-stale: #8A92A0;
+  --route-1: #1F6FEB;   /* R1 · Bugasong */
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /* Size */
+  --layout-frame-width: 393px;
+  --layout-touch-min: 44px;
+  --size-home-content-w: 361px;
+  --size-mascot-hero-h: 160px;
+  --size-mascot-band-h: 84px;
+  --size-dot-xs: 6px;
+  --size-dot-sm: 8px;
+  --size-icon-xs: 16px;
+  --stroke-icon: 1.75;
+  --stroke-check: 3;
+
+  /* Radius */
+  --radius-md: 16px;
+  --radius-xl: 24px;
+  --radius-pill: 999px;
+
+  /* Elevation */
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.04);
+  --shadow-raised: 0 8px 24px rgba(15, 17, 21, 0.10);
+
+  /* Type */
+  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Motion (DESIGN.md 7 + NearestJeepney) */
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ui-dur: 200ms;
+  --press-dur: 150ms;
+  --press-scale: 0.97;
+  --pulse-dur: 2000ms;
+  --boarded-hold: 1000ms;      /* check stays visible before the card closes */
+  --content-delay: 100ms;      /* content starts after the card begins to grow */
+
+  /* transitions.dev: 01 Card resize */
+  --resize-dur: 300ms;
+  --resize-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* 02 Number pop-in */
+  --digit-dur: 600ms;
+  --digit-exit-dur: 155ms;
+  --digit-enter-delay: 50ms;
+  --digit-stagger: 40ms;
+  --digit-distance: 0.52em;
+  --digit-exit-distance: 0.52em;
+  --digit-blur: max(0.067em, 0.171em - 2.1px);
+  --digit-lift: 0.125em;
+  --digit-start-scale: 0.7;
+  --digit-peak: 1.03;
+  /* 04 Text states swap */
+  --text-swap-dur: 150ms;
+  --text-swap-translate-y: 4px;
+  --text-swap-blur: 2px;
+  --text-swap-ease: ease-in-out;
+  /* 09 Icon swap */
+  --icon-swap-dur: 250ms;
+  --icon-swap-blur: 2px;
+  --icon-swap-start-scale: 0.25;
+  --icon-swap-ease: ease-in-out;
+  /* 10 Success check */
+  --check-opacity-dur: 500ms;
+  --check-rotate-dur: 500ms;
+  --check-rotate-from: 80deg;
+  --check-bob-dur: 500ms;
+  --check-y-amount: 40px;
+  --check-blur-dur: 500ms;
+  --check-blur-from: 10px;
+  --check-path-dur: 500ms;
+  --check-path-delay: 80ms;
+  --check-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --check-ease-opacity: cubic-bezier(0.22, 1, 0.36, 1);
+  --check-ease-rotate: cubic-bezier(0.22, 1, 0.36, 1);
+  --check-ease-bob: cubic-bezier(0.34, 1.35, 0.64, 1);
+  --check-ease-path: cubic-bezier(0.22, 1, 0.36, 1);
+  /* 18 Texts reveal */
+  --stagger-dur: 500ms;
+  --stagger-distance: 12px;
+  --stagger-stagger: 40ms;
+  --stagger-blur: 3px;
+  --stagger-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* 34 Text swap soft */
+  --text-soft-dur: 200ms;
+  --text-soft-blur: 2px;
+  --text-soft-ease: ease-in-out;
+  --text-soft-resize-dur: 240ms;
+  --text-soft-resize-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* 36 Number subtle change */
+  --subtle-dur: 455ms;
+  --subtle-distance: 0.14em;
+  --subtle-blur: 0.042em;
+  --subtle-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* Type styles (DESIGN.md 3) */
+.type-display  { font-size: 40px; line-height: 48px; font-weight: 800; }
+.type-h3       { font-size: 18px; line-height: 26px; font-weight: 600; }
+.type-body-lg  { font-size: 16px; line-height: 24px; font-weight: 500; }
+.type-caption  { font-size: 12px; line-height: 16px; font-weight: 500; }
+.type-greeting { font-size: 17px; line-height: 24px; font-weight: 600; }
+.type-mono-tag { font-family: var(--font-mono); font-size: 10px; line-height: 14px; font-weight: 500; letter-spacing: 0.04em; }
+/* Buttons: Button/Primary + Button/Secondary, Small (40 tall, 44 hit area) */
+.wbtn {
+  position: relative;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  font-size: 16px; line-height: 24px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+  transition:
+    transform var(--press-dur) var(--ease-smooth-out),
+    background-color var(--ui-dur) ease-out,
+    color var(--ui-dur) ease-out;
+}
+.wbtn::before { content: ""; position: absolute; inset: -2px 0; } /* 44 px hit area */
+.wbtn:active { transform: scale(var(--press-scale)); }
+.wbtn-primary { background: var(--primary-default); color: var(--text-inverse); }
+.wbtn-primary:focus-visible { background: var(--primary-pressed); }
+.wbtn-secondary:focus-visible { background: var(--bg-strong); }
+/* =========================================================================
+   Role/Commuter/WaitingCard
+   ========================================================================= */
+/* Wrapper owns the height tween and the 12 px gap to the next card,
+   so the gap collapses together with the card. */
+.wait-wrap { display: none; }
+.wait-wrap.is-present { display: block; }
+.wait-wrap.is-sizing { overflow: hidden; }
+.wait-wrap { transition: opacity var(--resize-dur) var(--resize-ease); }
+.wait-wrap.is-leaving { opacity: 0; }
+.wait-inner { padding-bottom: var(--space-3); }
+
+.wait-card {
+  position: relative;
+  background: var(--bg-default);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Row 1: CardHeader (Tone=Live). The header button stretches over the
+   whole card, so tapping anywhere opens the details. */
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--layout-touch-min);
+  margin: calc((var(--layout-touch-min) - 16px) / -2) 0; /* keep a 16 px row, 44 px hit area */
+  text-align: left;
+  width: 100%;
+}
+.card-head::after { content: ""; position: absolute; inset: 0; border-radius: var(--radius-xl); }
+.card-head:focus-visible::after { background: rgba(15, 17, 21, 0.03); }
+.card-head .title { flex: 1; color: var(--text-secondary); }
+.card-head .meta { color: var(--text-secondary); /* not tertiary: freshness is essential info */ display: inline-flex; align-items: baseline; white-space: pre; }
+.card-head .arrow { width: var(--size-icon-xs); height: var(--size-icon-xs); color: var(--text-tertiary); flex: none; }
+
+/* Foundations/LivePulse: flat dot + flat translucent ring that fades out */
+.live-dot {
+  position: relative;
+  width: var(--size-dot-xs);
+  height: var(--size-dot-xs);
+  border-radius: 50%;
+  background: var(--status-live);
+  flex: none;
+  transition: background-color var(--text-soft-dur) var(--text-soft-ease);
+}
+.live-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: inherit;
+  animation: live-pulse var(--pulse-dur) var(--ease-smooth-out) infinite;
+}
+@keyframes live-pulse {
+  0%       { transform: scale(1);   opacity: 0.5; }
+  70%,100% { transform: scale(2.6); opacity: 0; }
+}
+.is-stale .live-dot { background: var(--status-stale); }
+.is-stale .live-dot::after { animation: none; opacity: 0; }
+
+/* Row 2: ETA (fixed 48 px row so "Arriving" doesn't change the card height) */
+.eta { height: 48px; display: grid; align-items: center; }
+.eta-face { grid-area: 1 / 1; display: flex; align-items: baseline; gap: var(--space-1); }
+.eta-face[hidden] { display: none; }
+.eta .unit { color: var(--text-secondary); white-space: pre; }
+
+/* Row 3: trip (same shape as the island's From row) */
+.trip {
+  height: var(--layout-touch-min);
+  box-sizing: border-box;
+  background: var(--bg-subtle);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.wait-route-dot { width: var(--size-dot-sm); height: var(--size-dot-sm); border-radius: 50%; background: var(--route-1); flex: none; }
+.trip .wait-stops { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+/* Row 4: I boarded (sits above the stretched header link) */
+.board { position: relative; z-index: 1; width: 100%; }
+.board[disabled] { cursor: default; }
+.board .check { width: var(--size-icon-xs); height: var(--size-icon-xs); }
+.board .check path { stroke: currentColor; stroke-width: var(--stroke-check); stroke-linecap: round; stroke-linejoin: round; fill: none; }
+
+.toast {
+  position: absolute;
+  z-index: 10;
+  top: var(--layout-safe-top);
+  left: 50%;
+  transform: translate(-50%, -8px);
+  background: var(--primary-default);
+  color: var(--text-inverse);
+  border-radius: var(--radius-pill);
+  padding: var(--space-2) var(--space-4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--ui-dur) ease-out, transform var(--ui-dur) ease-out;
+}
+.toast.is-shown { opacity: 1; transform: translate(-50%, 0); }
+/* =========================================================================
+   transitions.dev snippets, pasted as written
+   ========================================================================= */
+/* 01 Card resize */
+.t-resize {
+  transition:
+    width  var(--resize-dur) var(--resize-ease),
+    height var(--resize-dur) var(--resize-ease);
+  will-change: width, height;
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-resize { transition: none !important; }
+}
+
+/* 02 Number pop-in */
+.t-digit-group { display: inline-flex; align-items: baseline; }
+.t-digit-slot { position: relative; display: inline-block; }
+.t-digit-old { position: absolute; inset: 0; text-align: center; pointer-events: none; }
+.t-digit { display: inline-block; will-change: transform, opacity, filter; }
+.t-digit-group.is-animating .t-digit {
+  animation: t-digit-in var(--digit-dur) linear both;
+  animation-delay: calc(var(--digit-stagger) * var(--digit-i, 0) + var(--digit-enter-delay));
+}
+.t-digit-group.is-animating .t-digit-old {
+  animation: t-digit-out var(--digit-exit-dur) linear both;
+  animation-delay: calc(var(--digit-stagger) * var(--digit-i, 0));
+}
+.t-digit-group.is-animating [data-stagger="1"] { --digit-i: 1; }
+.t-digit-group.is-animating [data-stagger="2"] { --digit-i: 2; }
+.t-digit-group.is-animating .t-digit[data-same] { animation: none; }
+
+@keyframes t-digit-in {
+  0% { transform: translateY(calc(var(--digit-distance) * 1 + var(--digit-lift) * 0)) scale(var(--digit-start-scale)); opacity: 0; filter: blur(calc(var(--digit-blur) * 1)); }
+  5% { transform: translateY(calc(var(--digit-distance) * 0.941 + var(--digit-lift) * 0.216)) scale(var(--digit-start-scale)); opacity: 0.059; filter: blur(calc(var(--digit-blur) * 1)); }
+  10% { transform: translateY(calc(var(--digit-distance) * 0.755 + var(--digit-lift) * 0.648)) scale(var(--digit-start-scale)); opacity: 0.245; filter: blur(calc(var(--digit-blur) * 1)); }
+  15% { transform: translateY(calc(var(--digit-distance) * 0.475 + var(--digit-lift) * 0.972)) scale(var(--digit-start-scale)); opacity: 0.525; filter: blur(calc(var(--digit-blur) * 1)); }
+  20% { transform: translateY(calc(var(--digit-distance) * 0.206 + var(--digit-lift) * 0.792)) scale(calc(1 + (var(--digit-start-scale) - 1) * 0.792)); opacity: 0.794; filter: blur(calc(var(--digit-blur) * 0.9)); }
+  25% { transform: translateY(calc(var(--digit-distance) * 0.041 + var(--digit-lift) * 0.392)) scale(calc(1 + (var(--digit-start-scale) - 1) * 0.392)); opacity: 0.959; filter: blur(calc(var(--digit-blur) * 0.75)); }
+  30% { transform: translateY(calc(var(--digit-distance) * 0 + var(--digit-lift) * 0.033)) scale(calc(1 + (var(--digit-start-scale) - 1) * 0.033)); opacity: 1; filter: blur(calc(var(--digit-blur) * 0.6)); }
+  35% { transform: translateY(calc(var(--digit-distance) * 0 + var(--digit-lift) * -0.194)) scale(calc(1 + (var(--digit-peak) - 1) * 0.711)); opacity: 1; filter: blur(calc(var(--digit-blur) * 0.45)); }
+  40% { transform: translateY(calc(var(--digit-distance) * 0 + var(--digit-lift) * -0.272)) scale(calc(1 + (var(--digit-peak) - 1) * 0.997)); opacity: 1; filter: blur(calc(var(--digit-blur) * 0.3)); }
+  45% { transform: translateY(calc(var(--digit-distance) * 0 + var(--digit-lift) * -0.238)) scale(calc(1 + (var(--digit-peak) - 1) * 0.87)); opacity: 1; filter: blur(calc(var(--digit-blur) * 0.15)); }
+  50% { transform: translateY(calc(var(--digit-distance) * 0 + var(--digit-lift) * -0.146)) scale(calc(1 + (var(--digit-peak) - 1) * 0.535)); opacity: 1; filter: blur(calc(var(--digit-blur) * 0)); }
+  55% { transform: translateY(calc(var(--digit-distance) * 0 + var(--digit-lift) * -0.05)) scale(calc(1 + (var(--digit-peak) - 1) * 0.183)); opacity: 1; filter: blur(calc(var(--digit-blur) * 0)); }
+  60% { transform: translateY(calc(var(--digit-distance) * 0 + var(--digit-lift) * 0.019)) scale(calc(1 + (var(--digit-peak) - 1) * -0.069)); opacity: 1; filter: blur(calc(var(--digit-blur) * 0)); }
+  65% { transform: translateY(calc(var(--digit-distance) * 0 + var(--digit-lift) * 0.05)) scale(calc(1 + (var(--digit-peak) - 1) * -0.185)); opacity: 1; filter: blur(calc(var(--digit-blur) * 0)); }
+  70% { transform: translateY(calc(var(--digit-distance) * 0 + var(--digit-lift) * 0.051)) scale(calc(1 + (var(--digit-peak) - 1) * -0.187)); opacity: 1; filter: blur(calc(var(--digit-blur) * 0)); }
+  75% { transform: translateY(calc(var(--digit-distance) * 0 + var(--digit-lift) * 0.035)) scale(calc(1 + (var(--digit-peak) - 1) * -0.128)); opacity: 1; filter: blur(calc(var(--digit-blur) * 0)); }
+  80% { transform: translateY(calc(var(--digit-distance) * 0 + var(--digit-lift) * 0.016)) scale(calc(1 + (var(--digit-peak) - 1) * -0.057)); opacity: 1; filter: blur(calc(var(--digit-blur) * 0)); }
+  85% { transform: translateY(calc(var(--digit-distance) * 0 + var(--digit-lift) * 0.002)) scale(calc(1 + (var(--digit-peak) - 1) * -0.007)); opacity: 1; filter: blur(calc(var(--digit-blur) * 0)); }
+  90% { transform: translateY(calc(var(--digit-distance) * 0 + var(--digit-lift) * -0.004)) scale(calc(1 + (var(--digit-peak) - 1) * 0.013)); opacity: 1; filter: blur(calc(var(--digit-blur) * 0)); }
+  95% { transform: translateY(calc(var(--digit-distance) * 0 + var(--digit-lift) * -0.003)) scale(calc(1 + (var(--digit-peak) - 1) * 0.011)); opacity: 1; filter: blur(calc(var(--digit-blur) * 0)); }
+  100% { transform: translateY(calc(var(--digit-distance) * 0 + var(--digit-lift) * 0)) scale(1); opacity: 1; filter: blur(calc(var(--digit-blur) * 0)); }
+}
+@keyframes t-digit-out {
+  0% { transform: translateY(calc(var(--digit-exit-distance) * 0)) scale(calc(1 + (var(--digit-start-scale) - 1) * 0)); opacity: 1; filter: blur(calc(var(--digit-blur) * 0)); }
+  10% { transform: translateY(calc(var(--digit-exit-distance) * -0.009)) scale(calc(1 + (var(--digit-start-scale) - 1) * 0.009)); opacity: 1; filter: blur(calc(var(--digit-blur) * 0.009)); }
+  20% { transform: translateY(calc(var(--digit-exit-distance) * -0.042)) scale(calc(1 + (var(--digit-start-scale) - 1) * 0.042)); opacity: 1; filter: blur(calc(var(--digit-blur) * 0.042)); }
+  30% { transform: translateY(calc(var(--digit-exit-distance) * -0.112)) scale(calc(1 + (var(--digit-start-scale) - 1) * 0.112)); opacity: 1; filter: blur(calc(var(--digit-blur) * 0.112)); }
+  40% { transform: translateY(calc(var(--digit-exit-distance) * -0.252)) scale(calc(1 + (var(--digit-start-scale) - 1) * 0.252)); opacity: 1; filter: blur(calc(var(--digit-blur) * 0.252)); }
+  50% { transform: translateY(calc(var(--digit-exit-distance) * -0.5)) scale(calc(1 + (var(--digit-start-scale) - 1) * 0.5)); opacity: 0.833; filter: blur(calc(var(--digit-blur) * 0.5)); }
+  60% { transform: translateY(calc(var(--digit-exit-distance) * -0.748)) scale(calc(1 + (var(--digit-start-scale) - 1) * 0.748)); opacity: 0.42; filter: blur(calc(var(--digit-blur) * 0.748)); }
+  70% { transform: translateY(calc(var(--digit-exit-distance) * -0.888)) scale(calc(1 + (var(--digit-start-scale) - 1) * 0.888)); opacity: 0.187; filter: blur(calc(var(--digit-blur) * 0.888)); }
+  80% { transform: translateY(calc(var(--digit-exit-distance) * -0.958)) scale(calc(1 + (var(--digit-start-scale) - 1) * 0.958)); opacity: 0.069; filter: blur(calc(var(--digit-blur) * 0.958)); }
+  90% { transform: translateY(calc(var(--digit-exit-distance) * -0.991)) scale(calc(1 + (var(--digit-start-scale) - 1) * 0.991)); opacity: 0.015; filter: blur(calc(var(--digit-blur) * 0.991)); }
+  100% { transform: translateY(calc(var(--digit-exit-distance) * -1)) scale(calc(1 + (var(--digit-start-scale) - 1) * 1)); opacity: 0; filter: blur(calc(var(--digit-blur) * 1)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-digit-group .t-digit { animation: none !important; }
+  .t-digit-group .t-digit-old { display: none; }
+}
+
+/* 04 Text states swap */
+.t-text-swap {
+  display: inline-block;
+  transform: translateY(0);
+  filter: blur(0);
+  opacity: 1;
+  transition:
+    transform var(--text-swap-dur) var(--text-swap-ease),
+    filter    var(--text-swap-dur) var(--text-swap-ease),
+    opacity   var(--text-swap-dur) var(--text-swap-ease);
+  will-change: transform, filter, opacity;
+}
+.t-text-swap.is-exit {
+  transform: translateY(calc(var(--text-swap-translate-y) * -1));
+  filter: blur(var(--text-swap-blur));
+  opacity: 0;
+}
+.t-text-swap.is-enter-start {
+  transform: translateY(var(--text-swap-translate-y));
+  filter: blur(var(--text-swap-blur));
+  opacity: 0;
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-text-swap { transition: none !important; }
+}
+
+/* 09 Icon swap */
+.t-icon-swap {
+  position: relative;
+  display: inline-grid;
+}
+.t-icon-swap .t-icon {
+  grid-area: 1 / 1;
+  transition:
+    opacity   var(--icon-swap-dur) var(--icon-swap-ease),
+    filter    var(--icon-swap-dur) var(--icon-swap-ease),
+    transform var(--icon-swap-dur) var(--icon-swap-ease);
+}
+.t-icon-swap[data-state="a"] .t-icon[data-icon="a"],
+.t-icon-swap[data-state="b"] .t-icon[data-icon="b"] {
+  opacity: 1;
+  filter: blur(0);
+  transform: scale(1);
+}
+.t-icon-swap[data-state="a"] .t-icon[data-icon="b"],
+.t-icon-swap[data-state="b"] .t-icon[data-icon="a"] {
+  opacity: 0;
+  filter: blur(var(--icon-swap-blur));
+  transform: scale(var(--icon-swap-start-scale));
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-icon-swap .t-icon { transition: none !important; }
+}
+
+/* 10 Success check */
+.t-success-check {
+  display: inline-block;
+  transform-origin: center;
+  opacity: 0;
+  will-change: transform, opacity, filter;
+}
+.t-success-check svg { display: block; overflow: visible; }
+.t-success-check svg path {
+  stroke-dasharray: 20; /* replaced at runtime with getTotalLength() */
+  stroke-dashoffset: 20;
+}
+.t-success-check[data-state="in"] {
+  animation:
+    t-check-fade   var(--check-opacity-dur) var(--check-ease-opacity) forwards,
+    t-check-rotate var(--check-rotate-dur)  var(--check-ease-rotate)  forwards,
+    t-check-blur   var(--check-blur-dur)    var(--check-ease-out)     forwards,
+    t-check-bob    var(--check-bob-dur)     var(--check-ease-bob)     forwards;
+}
+.t-success-check[data-state="in"] svg path {
+  animation: t-check-draw var(--check-path-dur) var(--check-ease-path) var(--check-path-delay, 0ms) forwards;
+}
+@keyframes t-check-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes t-check-rotate {
+  from { transform: rotate(var(--check-rotate-from)); }
+  to   { transform: rotate(0deg); }
+}
+@keyframes t-check-blur {
+  from { filter: blur(var(--check-blur-from)); }
+  to   { filter: blur(0); }
+}
+@keyframes t-check-bob {
+  from { translate: 0 var(--check-y-amount); }
+  to   { translate: 0 0; }
+}
+@keyframes t-check-draw { to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .t-success-check { animation: none !important; opacity: 1; }
+  .t-success-check svg path { animation: none !important; stroke-dashoffset: 0 !important; }
+}
+
+/* 18 Texts reveal (4 rows) */
+.t-stagger-line {
+  display: block;
+  opacity: 0;
+  transform: translateY(var(--stagger-distance));
+  filter: blur(var(--stagger-blur));
+  transition:
+    opacity   var(--stagger-dur) var(--stagger-ease),
+    transform var(--stagger-dur) var(--stagger-ease),
+    filter    var(--stagger-dur) var(--stagger-ease);
+  will-change: transform, opacity, filter;
+}
+.t-stagger-line--2 { transition-delay: var(--stagger-stagger); }
+.t-stagger-line--3 { transition-delay: calc(var(--stagger-stagger) * 2); }
+.t-stagger-line--4 { transition-delay: calc(var(--stagger-stagger) * 3); }
+.t-stagger.is-shown .t-stagger-line {
+  opacity: 1;
+  transform: translateY(0);
+  filter: blur(0);
+}
+.t-stagger.is-hiding .t-stagger-line {
+  opacity: 0;
+  transform: translateY(0);
+  filter: blur(0);
+  transition:
+    opacity 200ms ease,
+    transform 0s linear,
+    filter 0s linear;
+  transition-delay: 0s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-stagger-line { transition: none !important; }
+}
+/* Rows that are flex containers keep their own display after the reveal */
+.wait-card .card-head.t-stagger-line,
+.wait-card .trip.t-stagger-line,
+.wait-card .board.t-stagger-line { display: flex; }
+.wait-card .eta.t-stagger-line { display: grid; }
+
+/* 34 Text swap soft */
+.t-text-soft {
+  display: inline-grid;
+  justify-items: var(--text-soft-align, start);
+  transition: width var(--text-soft-resize-dur) var(--text-soft-resize-ease);
+}
+.t-text-soft > span {
+  grid-area: 1 / 1;
+  white-space: pre;
+  transition:
+    filter  var(--text-soft-dur) var(--text-soft-ease),
+    opacity var(--text-soft-dur) var(--text-soft-ease);
+}
+.t-text-soft-new {
+  opacity: 0;
+  filter: blur(var(--text-soft-blur));
+}
+.t-text-soft.is-swapping .t-text-soft-old {
+  opacity: 0;
+  filter: blur(var(--text-soft-blur));
+}
+.t-text-soft.is-swapping .t-text-soft-new {
+  opacity: 1;
+  filter: blur(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-text-soft,
+  .t-text-soft > span { transition: none !important; }
+}
+
+/* 36 Number subtle change */
+.t-subtle-number {
+  display: inline-flex;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+}
+.t-subtle-slot { position: relative; display: inline-block; }
+.t-subtle-new { display: inline-block; }
+.t-subtle-old { position: absolute; inset: 0; text-align: center; pointer-events: none; }
+.t-subtle-number.is-animating .t-subtle-new {
+  animation: t-subtle-in var(--subtle-dur) var(--subtle-ease) both;
+}
+.t-subtle-number.is-animating .t-subtle-old {
+  animation: t-subtle-out var(--subtle-dur) var(--subtle-ease) both;
+}
+@keyframes t-subtle-in {
+  from {
+    transform: translateY(calc(var(--subtle-distance) * var(--subtle-dir, 1)));
+    opacity: 0;
+    filter: blur(var(--subtle-blur));
+  }
+}
+@keyframes t-subtle-out {
+  to {
+    transform: translateY(calc(var(--subtle-distance) * var(--subtle-dir, 1) * -1));
+    opacity: 0;
+    filter: blur(var(--subtle-blur));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-subtle-number .t-subtle-new { animation: none !important; }
+  .t-subtle-number .t-subtle-old { display: none; }
+}
+/* Home column that holds the waiting card (context: Home has no other content in this prototype) */
+.home { position: absolute; top: 71px; left: var(--space-4); right: var(--space-4); }
+
+</style>
+</head>
+<body>
+
+<div class="phone" data-open="false">
+  <div class="scrim" aria-hidden="true"></div>
+
+  <div class="menu" id="menu">
+    <div class="menu-list" id="menu-list" role="menu" aria-label="New" inert aria-hidden="true">
+      <button class="menu-row" type="button" role="menuitem" data-go="chat" data-press>
+        <span class="menu-icon is-chat" data-icon="message"></span>
+        <span class="menu-text"><span class="menu-title">Chat</span><span class="menu-sub">Ask Loc8 about jeepneys</span></span>
+      </button>
+      <button class="menu-row" type="button" role="menuitem" data-go="wait" data-press>
+        <span class="menu-icon" data-icon="pin"></span>
+        <span class="menu-text"><span class="menu-title">Start waiting</span><span class="menu-sub">Pick your stop and destination</span></span>
+      </button>
+    </div>
+  </div>
+
+  <section class="page" id="page-wait" role="dialog" aria-modal="true" aria-labelledby="dest-title" inert>
+      <div class="page-head">
+        <button class="back" type="button" aria-label="Back" data-back data-press data-icon="chevron-left"></button>
+        <div class="page-titles">
+          <h2 class="dest-title" id="dest-title" aria-live="polite">Where from?</h2>
+          <p class="dest-sub" id="hint">Pick the stop where you are waiting</p>
+        </div>
+      </div>
+      <div class="dest-head">
+        <button class="from-row route" id="from-row" type="button" hidden data-press>
+          <span class="from-label">From</span>
+          <span class="from-place" id="from-place"></span>
+          <span class="from-change">Change</span>
+        </button>
+      </div>
+      <div class="dest-scroll" id="routes" role="group" aria-labelledby="dest-title"></div>
+      <div class="dest-foot" id="foot">
+        <div class="dest-foot-inner">
+          <div class="dest-foot-body">
+            <p class="picked" id="picked"></p>
+            <div class="receipt" aria-label="Fare estimate">
+              <div class="fare-type" role="group" aria-label="Passenger type">
+                <button type="button" data-type="regular" aria-pressed="true">Regular</button>
+                <button type="button" data-type="discount" aria-pressed="false">Student · Senior · PWD</button>
+              </div>
+              <div class="calc-row"><span class="calc-label">Distance</span><span class="calc-value" id="calc-km"></span></div>
+              <div class="calc-row"><span class="calc-label">Base fare · first 4 km</span><span class="calc-value" id="calc-base"></span></div>
+              <div class="calc-row" id="row-extra"><span class="calc-label" id="calc-extra-label"></span><span class="calc-value" id="calc-extra"></span></div>
+              <div class="calc-row" id="row-discount"><span class="calc-label">20% off · rounded to ₱0.25</span><span class="calc-value" id="calc-discount"></span></div>
+              <div class="calc-row calc-total" aria-live="polite"><span class="calc-label">Estimated fare</span><span class="calc-value" id="calc-total"></span></div>
+            </div>
+            <button class="btn-primary" id="start" type="button" data-press>Start waiting</button>
+          </div>
+        </div>
+      </div>
+  </section>
+
+  <section class="page" id="page-chat" role="dialog" aria-modal="true" aria-labelledby="chat-title" inert>
+    <div class="page-head">
+      <button class="back" type="button" aria-label="Back" data-back data-press data-icon="chevron-left"></button>
+      <div class="page-titles">
+        <h2 class="page-title" id="chat-title">Chat</h2>
+        <p class="page-sub">Ask about jeepneys, fares and stops.</p>
+      </div>
+    </div>
+    <div class="chat-log" id="chat-log" aria-live="polite">
+      <div>
+        <div class="bot-name"><img src="../../Reference/mascot-head.png" alt="">Loc8</div>
+        <p class="msg">Hi <strong>Ana</strong>!</p>
+        <p class="msg">Ask me when the next jeepney comes, how much a fare is, or which stops a route has.</p>
+        <p class="msg">To start waiting for a jeepney, use the + button.</p>
+      </div>
+    </div>
+    <form class="chat-foot" id="chat-form">
+      <div class="composer">
+        <textarea id="chat-input" aria-label="Message" placeholder="Ask &quot;When is the next jeepney to San Jose?&quot;"></textarea>
+        <button class="send" id="send" type="submit" aria-label="Send" disabled data-press data-icon="arrow-up"></button>
+      </div>
+      <p class="disclaimer">Loc8 can make mistakes. Check important details.</p>
+    </form>
+  </section>
+
+<main class="home" aria-label="Home">
+<!-- Role/Commuter/WaitingCard -->
+    <div class="wait-wrap t-resize" id="waitWrap">
+      <div class="wait-inner">
+        <article class="wait-card t-stagger" id="waitCard" aria-label="Waiting card">
+          <button class="card-head t-stagger-line t-stagger-line--1" id="cardLink" type="button">
+            <span class="live-dot" aria-hidden="true"></span>
+            <span class="title type-caption" id="waitTitle">Waiting for J-014</span>
+            <span class="meta type-mono-tag" aria-hidden="true"><span class="t-text-soft" id="metaLabel">LIVE</span> · <span class="t-subtle-number" id="metaNum">0</span><span class="t-text-soft" id="metaUnit">S</span></span>
+            <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </button>
+
+          <div class="eta t-stagger-line t-stagger-line--2" aria-live="polite">
+            <div class="t-text-swap" id="etaSwap">
+              <span class="eta-face" id="etaValue">
+                <span class="t-digit-group type-display" id="etaDigits">6</span>
+                <span class="unit type-mono-tag t-text-soft" id="etaUnit">MIN</span>
+              </span>
+              <span class="eta-face type-h3" id="etaArriving" hidden>Arriving</span>
+            </div>
+          </div>
+
+          <div class="trip t-stagger-line t-stagger-line--3">
+            <span class="wait-route-dot" id="waitDot" aria-hidden="true"></span>
+            <span class="wait-stops type-caption" id="waitStops">Bugasong · Public Market → San Jose · Market Stop</span>
+          </div>
+
+          <button class="wbtn wbtn-primary board t-stagger-line t-stagger-line--4" id="boardBtn" type="button">
+            <span class="t-icon-swap" id="boardSwap" data-state="a">
+              <span class="t-icon" data-icon="a">I boarded</span>
+              <span class="t-icon" data-icon="b">
+                <span class="t-success-check check" id="boardCheck" data-state="out" aria-hidden="true">
+                  <svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg>
+                </span>
+              </span>
+            </span>
+          </button>
+        </article>
+      </div>
+    </div>
+</main>
+<div class="toast type-caption" id="toast" role="status"></div>
+  <nav class="nav" aria-label="Main">
+    <div class="nav-pill">
+      <a class="tab is-active" aria-current="page" data-icon="home-filled">Home</a>
+      <a class="tab" aria-label="Map" data-icon="map"></a>
+      <a class="tab" aria-label="Activity" data-icon="activity"></a>
+      <a class="tab" aria-label="Profile" data-icon="user-circle"></a>
+    </div>
+    <button class="action" id="action" type="button" data-state="idle"
+            aria-label="New" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-list" data-press>
+      <span class="icon-plus" data-icon="plus"></span>
+      <span class="icon-pin" data-icon="pin"></span>
+    </button>
+  </nav>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------------------------------------------------------------------
+  // PLACEHOLDER MOCK DATA. Stop names, jeepney IDs, ETAs and km are made up.
+  // Replace with the real stop list per route when it is available.
+  // km = road distance from the first stop, one number per stop.
+  // ---------------------------------------------------------------------
+  var ROUTES = [
+    { id: 'r1', code: 'R1', name: 'Bugasong',
+      stops: ['Bugasong Terminal', 'Public Market', 'Town Plaza', 'Municipal Hall', 'National High School', 'Highway Junction'],
+      km: [0, 2, 3, 5, 8, 11],
+      jeeps: [{ id: 'J-014', stop: 1, eta: '3 MIN' }, { id: 'J-009', stop: 4, eta: '11 MIN' }] },
+    { id: 'r2', code: 'R2', name: 'San Jose',
+      stops: ['San Jose Terminal', 'Provincial Capitol', 'Public Plaza', 'Market Stop', 'Hospital Road', 'Town Proper'],
+      km: [0, 2, 4, 6, 9, 13],
+      jeeps: [{ id: 'J-021', stop: 2, eta: '5 MIN' }] },
+    { id: 'r3', code: 'R3', name: 'Patnongon',
+      stops: ['Patnongon Terminal', 'Public Market', 'Town Plaza', 'Parish Church', 'Elementary School', 'Coastal Road'],
+      km: [0, 1, 3, 5, 7, 10],
+      jeeps: [{ id: 'J-007', stop: 0, eta: '2 MIN' }, { id: 'J-018', stop: 3, eta: '9 MIN' }] }
+  ];
+
+  // Fare rules: LTFRB PUJ fare guide, effective Sept 28, 2026 (same as prototype/fare-card)
+  var BASE_FARE = 14, BASE_KM = 4, PER_KM = 2, DISCOUNT_RATE = 0.2;
+  function regularFare(km) { return BASE_FARE + PER_KM * Math.max(0, km - BASE_KM); }
+  // Student / Senior / PWD: 20% off, rounded to the nearest 25 centavos
+  function discountFare(km) { return Math.round(regularFare(km) * (1 - DISCOUNT_RATE) * 4) / 4; }
+  // Self-check against rows of the official fare table: [km, regular, discount]
+  [[1, 14, 11.25], [4, 14, 11.25], [5, 16, 12.75], [9, 24, 19.25], [17, 40, 32]].forEach(function (row) {
+    console.assert(regularFare(row[0]) === row[1], 'regular fare wrong at ' + row[0] + ' km');
+    console.assert(discountFare(row[0]) === row[2], 'discount fare wrong at ' + row[0] + ' km');
+  });
+  function peso(n) { return '₱' + n.toFixed(2); }
+
+  // Lucide icon paths (ISC License). 24 px grid, 1.75 stroke, round caps and joins.
+  var ICONS = {
+    plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+    pin: '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
+    'chevron-down': '<path d="m6 9 6 6 6-6"/>',
+    'chevron-left': '<path d="m15 18-6-6 6-6"/>',
+    'arrow-up': '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
+    message: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+    map: '<path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/>',
+    activity: '<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>',
+    'user-circle': '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"/>',
+    'home-filled': '<path fill="currentColor" d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'
+  };
+  function icon(name, size) {
+    size = size || 24;
+    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+      'stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[name] + '</svg>';
+  }
+  document.querySelectorAll('[data-icon]').forEach(function (el) {
+    el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon));
+  });
+
+  var phone = document.querySelector('.phone');
+  var menuList = document.getElementById('menu-list');
+  var action = document.getElementById('action');
+  var list = document.getElementById('routes');
+  var foot = document.getElementById('foot');
+  var picked = document.getElementById('picked');
+  var startBtn = document.getElementById('start');
+  var scrim = document.querySelector('.scrim');
+  var title = document.getElementById('dest-title');
+  var hint = document.getElementById('hint');
+  var fromRow = document.getElementById('from-row');
+  var fromPlace = document.getElementById('from-place');
+  var fareTypeGroup = document.querySelector('.fare-type');
+  var pages = { wait: document.getElementById('page-wait'), chat: document.getElementById('page-chat') };
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  var isOpen = false;
+  var openPage = null; // 'wait' | 'chat' | null
+  var selection = { from: null, to: null }; // each is { route, index } once picked
+
+  // ---------------------------------------------------------------------
+  // Build the route accordion from the data
+  // ---------------------------------------------------------------------
+  list.innerHTML = ROUTES.map(function (route) {
+    var last = route.stops.length - 1;
+    var stops = route.stops.map(function (name, i) {
+      var jeep = route.jeeps.filter(function (j) { return j.stop === i; })[0];
+      var note = i === 0 ? 'First stop' : i === last ? 'Last stop' : '';
+      return '<button class="stop' + (note ? ' is-end' : '') + '" type="button" aria-pressed="false" ' +
+          'data-route="' + route.id + '" data-stop="' + i + '" data-press>' +
+        '<span class="rail"><span class="stop-dot"></span></span>' +
+        '<span class="stop-text"><span class="stop-name">' + name + '</span>' +
+          (note ? '<span class="stop-note">' + note + '</span>' : '') + '</span>' +
+        (jeep ? '<span class="jeep" aria-label="Jeepney ' + jeep.id + ' here, ' + jeep.eta.toLowerCase() + ' away">' + jeep.id + ' · ' + jeep.eta + '</span>' : '') +
+        '<span class="pick-tag"></span>' +
+      '</button>';
+    }).join('');
+
+    return '<div class="route" data-route="' + route.id + '">' +
+      '<button class="route-row" type="button" aria-expanded="false" aria-controls="panel-' + route.id + '" data-press>' +
+        '<span class="route-dot"></span>' +
+        '<span class="route-text"><span class="route-name">' + route.name + '</span>' +
+          '<span class="route-meta">' + route.code + ' · ' + route.jeeps.length + ' LIVE</span></span>' +
+        '<span class="route-count">' + route.stops.length + ' stops</span>' +
+        '<span class="chev">' + icon('chevron-down') + '</span>' +
+      '</button>' +
+      '<div class="panel" id="panel-' + route.id + '"><div class="panel-inner"><div class="stops" inert>' + stops + '</div></div></div>' +
+    '</div>';
+  }).join('');
+
+  var rows = Array.prototype.slice.call(list.querySelectorAll('.route-row'));
+
+  // One route open at a time
+  function toggleRoute(row) {
+    var willOpen = row.getAttribute('aria-expanded') !== 'true';
+    rows.forEach(function (r) {
+      var open = r === row && willOpen;
+      r.setAttribute('aria-expanded', String(open));
+      r.nextElementSibling.querySelector('.stops').inert = !open;
+    });
+  }
+  function closeAllRoutes() {
+    rows.forEach(function (r) {
+      r.setAttribute('aria-expanded', 'false');
+      r.nextElementSibling.querySelector('.stops').inert = true;
+    });
+  }
+
+  // Two steps. Step 1 picks From (where you wait), step 2 picks To.
+  // Both can be any stop in any municipality.
+  function findRoute(id) { return ROUTES.filter(function (r) { return r.id === id; })[0]; }
+  function placeName(p) { return p.route.name + ' · ' + p.route.stops[p.index]; }
+  function samePlace(a, b) { return a && b && a.route === b.route && a.index === b.index; }
+
+  function pickStop(stopEl) {
+    var place = { route: findRoute(stopEl.dataset.route), index: Number(stopEl.dataset.stop) };
+    if (!selection.from) {
+      selection.from = place;
+      closeAllRoutes(); // step 2 starts with the route list closed again
+      rows[0].focus({ preventScroll: true }); // the tapped stop is now hidden, so move focus
+    } else {
+      selection.to = samePlace(selection.to, place) ? null : place; // tap To again to clear it
+    }
+    renderPicks();
+  }
+
+  function renderPicks() {
+    var s = selection;
+    var stepTo = !!s.from;
+    list.querySelectorAll('.stop').forEach(function (el) {
+      var place = { route: findRoute(el.dataset.route), index: Number(el.dataset.stop) };
+      var pick = samePlace(place, s.from) ? 'from' : samePlace(place, s.to) ? 'to' : null;
+      if (pick) el.dataset.pick = pick; else delete el.dataset.pick;
+      el.setAttribute('aria-pressed', String(!!pick));
+      el.disabled = stepTo && pick === 'from'; // you cannot ride to the stop you are waiting at
+    });
+    title.textContent = stepTo ? 'Where to?' : 'Where from?';
+    hint.textContent = !stepTo ? 'Pick the stop where you are waiting' : !s.to ? 'Pick your destination' : 'Check your fare';
+    fromRow.hidden = !stepTo;
+    if (stepTo) {
+      fromRow.dataset.route = s.from.route.id;
+      fromPlace.textContent = placeName(s.from);
+    }
+    foot.classList.toggle('is-shown', !!s.to);
+    if (s.to) {
+      picked.innerHTML = placeName(s.from) + ' → <strong>' + placeName(s.to) + '</strong>';
+      renderReceipt();
+    }
+  }
+
+  // Back to step 1
+  fromRow.addEventListener('click', function () {
+    resetPicker();
+    rows[0].focus({ preventScroll: true });
+  });
+
+  // shortcut: placeholder km between town terminals (same values as prototype/fare-card), replace with real road km
+  var TOWN_KM = { 'r1|r3': 18, 'r1|r2': 40, 'r2|r3': 22 };
+  // Same town: distance along that route. Different towns: from stop back to its
+  // terminal, terminal to terminal, then out to the destination stop.
+  function tripKm(a, b) {
+    if (a.route === b.route) return Math.abs(a.route.km[b.index] - a.route.km[a.index]);
+    var between = TOWN_KM[a.route.id + '|' + b.route.id] || TOWN_KM[b.route.id + '|' + a.route.id];
+    return a.route.km[a.index] + between + b.route.km[b.index];
+  }
+  console.assert(tripKm({ route: ROUTES[0], index: 1 }, { route: ROUTES[0], index: 4 }) === 6, 'same-town km wrong');
+  console.assert(tripKm({ route: ROUTES[1], index: 1 }, { route: ROUTES[0], index: 2 }) === 45, 'cross-town km wrong');
+
+  // Fare receipt for the picked trip, same math as the fare card
+  var fareType = 'regular';
+  function renderReceipt() {
+    var s = selection;
+    var km = tripKm(s.from, s.to);
+    var extraKm = Math.max(0, km - BASE_KM);
+    var regular = regularFare(km);
+    var isDiscount = fareType === 'discount';
+    document.getElementById('calc-km').textContent = km + ' km';
+    document.getElementById('calc-base').textContent = peso(BASE_FARE);
+    document.getElementById('row-extra').hidden = extraKm === 0;
+    document.getElementById('calc-extra-label').textContent = extraKm + ' km × ' + peso(PER_KM);
+    document.getElementById('calc-extra').textContent = peso(PER_KM * extraKm);
+    document.getElementById('row-discount').hidden = !isDiscount;
+    document.getElementById('calc-discount').textContent = '−' + peso(regular - discountFare(km));
+    document.getElementById('calc-total').textContent = peso(isDiscount ? discountFare(km) : regular);
+  }
+
+  fareTypeGroup.addEventListener('click', function (event) {
+    var btn = event.target.closest('button');
+    if (!btn) return;
+    fareType = btn.dataset.type;
+    fareTypeGroup.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b === btn)); });
+    renderReceipt();
+  });
+
+  list.addEventListener('click', function (event) {
+    var row = event.target.closest('.route-row');
+    if (row) { toggleRoute(row); return; }
+    var stop = event.target.closest('.stop');
+    if (stop) pickStop(stop);
+  });
+
+  // ---------------------------------------------------------------------
+  // Plus menu: the round button grows into a small card with two choices
+  // ---------------------------------------------------------------------
+  function openMenu() {
+    if (isOpen) return;
+    isOpen = true;
+    phone.dataset.open = 'true';
+    menuList.inert = false;
+    menuList.removeAttribute('aria-hidden');
+    action.setAttribute('aria-expanded', 'true');
+    action.setAttribute('aria-label', 'Close');
+    menuList.querySelector('.menu-row').focus({ preventScroll: true });
+  }
+
+  function closeMenu() {
+    if (!isOpen) return;
+    isOpen = false;
+    action.focus({ preventScroll: true });   // move focus out before the menu becomes inert
+    phone.dataset.open = 'false';
+    menuList.inert = true;
+    menuList.setAttribute('aria-hidden', 'true');
+    action.setAttribute('aria-expanded', 'false');
+    action.setAttribute('aria-label', action.dataset.state === 'waiting' ? 'Waiting. Tap to stop waiting' : 'New');
+  }
+
+  // ---------------------------------------------------------------------
+  // Full-screen pages slide in from the right and back out to the right
+  // ---------------------------------------------------------------------
+  function showPage(name) {
+    closeMenu();
+    if (name === 'wait') resetPicker();
+    openPage = name;
+    var page = pages[name];
+    page.inert = false;
+    page.dataset.shown = 'true';
+    page.querySelector('[data-back]').focus({ preventScroll: true });
+  }
+
+  function hidePage() {
+    if (!openPage) return;
+    var page = pages[openPage];
+    openPage = null;
+    action.focus({ preventScroll: true });
+    page.dataset.shown = 'false';
+    page.inert = true;
+  }
+
+  // Reset the picker so the next open starts clean
+  function resetPicker() {
+    selection = { from: null, to: null };
+    fareType = 'regular'; // start from Regular every time
+    fareTypeGroup.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.type === fareType)); });
+    list.scrollTop = 0;
+    closeAllRoutes();
+    renderPicks();
+  }
+
+  function setWaiting(on) {
+    action.dataset.state = on ? 'waiting' : 'idle';
+    action.setAttribute('aria-label', on ? 'Waiting. Tap to stop waiting' : 'New');
+  }
+
+  action.addEventListener('click', function () {
+    if (isOpen) { closeMenu(); return; }
+    if (action.dataset.state === 'waiting') { window.Loc8Wait.close(); return; } // stop waiting
+    openMenu();
+  });
+
+  menuList.addEventListener('click', function (event) {
+    var row = event.target.closest('[data-go]');
+    if (row) showPage(row.dataset.go);
+  });
+  document.querySelectorAll('[data-back]').forEach(function (b) { b.addEventListener('click', hidePage); });
+
+  startBtn.addEventListener('click', function () {
+    if (!selection.to) return;
+    var jeep = selection.from.route.jeeps[0]; // placeholder: first jeepney on the From route
+    hidePage();
+    setWaiting(true);
+    window.Loc8Wait.open({
+      jeepId: jeep.id,
+      eta: parseInt(jeep.eta, 10),
+      text: placeName(selection.from) + ' → ' + placeName(selection.to),
+      color: 'var(--route-' + selection.from.route.id.slice(1) + ')'
+    });
+    window.Loc8Wait.toast('You are now waiting for ' + jeep.id);
+  });
+  document.addEventListener('wait:closed', function () { setWaiting(false); });
+
+  scrim.addEventListener('click', closeMenu);
+  document.addEventListener('keydown', function (event) {
+    if (event.key !== 'Escape') return;
+    if (openPage) hidePage(); else closeMenu();
+  });
+
+  // ---------------------------------------------------------------------
+  // Chat: answers questions only. PLACEHOLDER replies until the real
+  // assistant exists; jeepney IDs and ETAs below are made up.
+  // ---------------------------------------------------------------------
+  var chatForm = document.getElementById('chat-form');
+  var chatInput = document.getElementById('chat-input');
+  var chatLog = document.getElementById('chat-log');
+  var sendBtn = document.getElementById('send');
+  var REPLIES = [
+    { match: /fare|price|cost|magkano|how much/i,
+      text: 'Regular fare is ' + peso(BASE_FARE) + ' for the first 4 km, plus ' + peso(PER_KM) + ' for each extra km. Students, seniors and PWD get 20% off.' },
+    { match: /next|when|eta|arriv|jeep/i,
+      text: 'J-014 on R1 · Bugasong is about 3 minutes from Public Market. Location updated 20 seconds ago.' },
+    { match: /route|stop|where/i,
+      text: 'Loc8 covers 3 routes: R1 · Bugasong, R2 · San Jose and R3 · Patnongon.' }
+  ];
+  function replyTo(question) {
+    var hit = REPLIES.filter(function (r) { return r.match.test(question); })[0];
+    return hit ? hit.text : 'I can answer questions about arrival times, fares, routes and stops.';
+  }
+  function addMessage(text, fromUser) {
+    var p = document.createElement('p');
+    p.className = 'msg' + (fromUser ? ' msg-user' : '');
+    p.textContent = text; // textContent, so typed text is never parsed as HTML
+    chatLog.appendChild(p);
+    chatLog.scrollTop = chatLog.scrollHeight;
+  }
+  chatInput.addEventListener('input', function () { sendBtn.disabled = !chatInput.value.trim(); });
+  chatInput.addEventListener('keydown', function (event) {
+    if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); chatForm.requestSubmit(); }
+  });
+  chatForm.addEventListener('submit', function (event) {
+    event.preventDefault();
+    var question = chatInput.value.trim();
+    if (!question) return;
+    addMessage(question, true);
+    chatInput.value = '';
+    sendBtn.disabled = true;
+    setTimeout(function () { addMessage(replyTo(question), false); }, 600);
+  });
+
+  // ---------------------------------------------------------------------
+  // Press feedback, held at least --press-dur so quick taps still show it
+  // ---------------------------------------------------------------------
+  var PRESS_MS = 150;
+  document.addEventListener('pointerdown', function (event) {
+    var el = event.target.closest('[data-press]');
+    if (!el || reduceMotion.matches) return;
+    var downAt = performance.now();
+    el.classList.add('is-pressed');
+    function release() {
+      document.removeEventListener('pointerup', release);
+      document.removeEventListener('pointercancel', release);
+      setTimeout(function () { el.classList.remove('is-pressed'); }, Math.max(0, PRESS_MS - (performance.now() - downAt)));
+    }
+    document.addEventListener('pointerup', release);
+    document.addEventListener('pointercancel', release);
+  });
+})();
+</script>
+<script>
+(function () {
+const $ = (id) => document.getElementById(id);
+const ms = (name) =>
+  parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || 0;
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
+
+const wrap = $("waitWrap"), card = $("waitCard");
+const etaSwapEl = $("etaSwap"), etaValue = $("etaValue"), etaArriving = $("etaArriving");
+const etaDigits = $("etaDigits"), etaUnit = $("etaUnit");
+const metaLabel = $("metaLabel"), metaNum = $("metaNum"), metaUnit = $("metaUnit");
+const boardBtn = $("boardBtn"), boardSwap = $("boardSwap"), boardCheck = $("boardCheck");
+
+
+// Demo data (placeholder values, same as the other prototypes)
+let ETA_START = 6;
+const ETA_TICK_MS = 3000;    // demo: one ETA minute every 3 s
+const FIX_EVERY_S = 5;       // demo: a new GPS fix resets the "seconds ago" counter
+const STALE_MINUTES = 2;
+
+let waiting = false, stale = false, arriving = false;
+let eta = ETA_START, secs = 0;
+let etaTimer = null, secTimer = null;
+
+/* ---------- 02 Number pop-in (orchestration from the skill, scoped to one group) */
+let etaCurrent = etaDigits.textContent.trim();
+function setDigits(str) {
+  let same = 0;
+  while (same < etaCurrent.length && same < str.length && etaCurrent[same] === str[same]) same++;
+  etaDigits.classList.remove("is-animating");
+  etaDigits.replaceChildren();
+  [...str].forEach((ch, i) => {
+    const fresh = document.createElement("span");
+    fresh.className = "t-digit";
+    fresh.textContent = ch;
+    if (i < same || !/\d/.test(ch)) {
+      fresh.dataset.same = "";
+      etaDigits.appendChild(fresh);
+      return;
+    }
+    const slot = document.createElement("span");
+    slot.className = "t-digit-slot";
+    const fromEnd = str.length - 1 - i;
+    if (fromEnd === 1) slot.dataset.stagger = "1";
+    else if (fromEnd === 0) slot.dataset.stagger = "2";
+    const oldCh = etaCurrent[etaCurrent.length - (str.length - i)];
+    if (oldCh && /\d/.test(oldCh)) {
+      const old = document.createElement("span");
+      old.className = "t-digit-old";
+      old.setAttribute("aria-hidden", "true");
+      old.textContent = oldCh;
+      slot.appendChild(old);
+    }
+    slot.appendChild(fresh);
+    etaDigits.appendChild(slot);
+  });
+  etaCurrent = str;
+  void etaDigits.offsetHeight; // force reflow
+  etaDigits.classList.add("is-animating");
+}
+
+/* ---------- 04 Text states swap: "6 MIN" <-> "Arriving" (faces swap instead of textContent) */
+function swapEtaFace(showArriving) {
+  const dur = ms("--text-swap-dur");
+  etaSwapEl.classList.add("is-exit");
+  setTimeout(() => {
+    etaValue.hidden = showArriving;
+    etaArriving.hidden = !showArriving;
+    etaSwapEl.classList.remove("is-exit");
+    etaSwapEl.classList.add("is-enter-start");
+    void etaSwapEl.offsetHeight; // force reflow so the next change transitions
+    etaSwapEl.classList.remove("is-enter-start");
+  }, dur);
+}
+
+/* ---------- 34 Text swap soft (from the skill) */
+function softSwap(el, next) {
+  const prev = el.dataset.text ?? el.textContent;
+  if (prev === next) return;
+  el.dataset.text = next;
+  clearTimeout(el._softTimer);
+
+  const out = document.createElement("span");
+  out.className = "t-text-soft-old";
+  out.setAttribute("aria-hidden", "true");
+  out.textContent = prev;
+  const inn = document.createElement("span");
+  inn.className = "t-text-soft-new";
+  inn.textContent = next;
+
+  const w0 = el.getBoundingClientRect().width;
+  el.classList.remove("is-swapping");
+  el.replaceChildren(out, inn);
+  const w1 = inn.getBoundingClientRect().width;
+  el.style.width = w0 + "px";
+  void el.offsetWidth; // force reflow so every transition runs
+  el.classList.add("is-swapping");
+  el.style.width = w1 + "px";
+
+  el._softTimer = setTimeout(() => {
+    el.classList.remove("is-swapping");
+    el.style.removeProperty("width");
+    el.textContent = next;
+  }, Math.max(ms("--text-soft-dur"), ms("--text-soft-resize-dur")) + 40);
+}
+
+/* ---------- 36 Number subtle change (from the skill, plain integers) */
+let metaValue = 0;
+function setMetaNumber(next) {
+  const prev = String(metaValue);
+  const str = String(next);
+  const sameLength = prev.length === str.length;
+  metaNum.style.setProperty("--subtle-dir", next >= metaValue ? "1" : "-1");
+  metaNum.classList.remove("is-animating");
+  metaNum.replaceChildren();
+  [...str].forEach((ch, i) => {
+    if (sameLength && prev[i] === ch) { metaNum.append(ch); return; }
+    const slot = document.createElement("span");
+    slot.className = "t-subtle-slot";
+    if (sameLength) {
+      const old = document.createElement("span");
+      old.className = "t-subtle-old";
+      old.setAttribute("aria-hidden", "true");
+      old.textContent = prev[i];
+      slot.appendChild(old);
+    }
+    const fresh = document.createElement("span");
+    fresh.className = "t-subtle-new";
+    fresh.textContent = ch;
+    slot.appendChild(fresh);
+    metaNum.appendChild(slot);
+  });
+  metaValue = next;
+  void metaNum.offsetHeight; // force reflow
+  metaNum.classList.add("is-animating");
+}
+
+/* ---------- Accessible label for the stretched header button */
+function updateLabel() {
+  const when = arriving ? "arriving now" : `${eta} minutes away`;
+  const fresh = stale ? `location stale, last update ${STALE_MINUTES} minutes ago` : "live location";
+  $("cardLink").setAttribute("aria-label", `${$("waitTitle").textContent}, ${when}, ${fresh}. Opens waiting details`);
+}
+
+/* ---------- Timers */
+function startTimers() {
+  stopTimers();
+  etaTimer = setInterval(() => {
+    if (stale || arriving) return;
+    if (eta <= 1) { setArriving(); return; }
+    eta -= 1;
+    setDigits(String(eta));
+    updateLabel();
+  }, ETA_TICK_MS);
+  secTimer = setInterval(() => {
+    if (stale) return;
+    secs = secs >= FIX_EVERY_S ? 0 : secs + 1;
+    setMetaNumber(secs);
+  }, 1000);
+}
+function stopTimers() { clearInterval(etaTimer); clearInterval(secTimer); }
+
+function setArriving() {
+  if (arriving) return;
+  arriving = true;
+  swapEtaFace(true);
+  updateLabel();
+}
+
+
+/* ---------- Reset the card to its starting state (no animation) */
+function resetCard() {
+  eta = ETA_START; secs = 0; stale = false; arriving = false;
+  etaCurrent = String(ETA_START);
+  etaDigits.classList.remove("is-animating");
+  etaDigits.textContent = etaCurrent;
+  etaValue.hidden = false; etaArriving.hidden = true;
+  [metaLabel, metaUnit, etaUnit].forEach((el) => delete el.dataset.text);
+  metaLabel.textContent = "LIVE"; metaUnit.textContent = "S"; etaUnit.textContent = "MIN";
+  metaValue = 0; metaNum.classList.remove("is-animating"); metaNum.textContent = "0";
+  card.classList.remove("is-stale");
+  boardBtn.disabled = false;
+  boardSwap.dataset.state = "a";
+  boardCheck.dataset.state = "out";
+  updateLabel();
+}
+
+/* ---------- 01 Card resize: open (height 0 -> content height) + 18 Texts reveal */
+function openCard(trip) {
+  if (waiting) return;
+  ETA_START = trip.eta;
+  $("waitTitle").textContent = "Waiting for " + trip.jeepId;
+  $("waitStops").textContent = trip.text;
+  $("waitDot").style.background = trip.color;
+  waiting = true;
+  resetCard();
+
+  card.classList.remove("is-shown", "is-hiding");
+  wrap.classList.remove("is-leaving");
+  wrap.classList.add("is-present", "is-sizing");
+  const target = wrap.scrollHeight;
+  wrap.style.height = "0px";
+  void wrap.offsetHeight; // force reflow so the height tweens
+  wrap.style.height = target + "px";
+
+  setTimeout(() => {
+    void card.offsetHeight;
+    card.classList.add("is-shown");
+  }, reduceMotion.matches ? 0 : ms("--content-delay"));
+
+  setTimeout(() => {
+    wrap.style.removeProperty("height");   // back to natural height
+    wrap.classList.remove("is-sizing");    // stop clipping the card shadow
+  }, reduceMotion.matches ? 0 : ms("--resize-dur"));
+
+  startTimers();
+}
+
+/* ---------- 01 Card resize: close (content height -> 0) */
+function closeCard(message) {
+  if (!waiting) return;
+  stopTimers();
+  wrap.classList.add("is-sizing");
+  wrap.style.height = wrap.offsetHeight + "px";
+  void wrap.offsetHeight;
+  wrap.classList.add("is-leaving");
+  wrap.style.height = "0px";
+
+  setTimeout(() => {
+    wrap.classList.remove("is-present", "is-sizing", "is-leaving");
+    wrap.style.removeProperty("height");
+    card.classList.remove("is-shown");
+    waiting = false;
+    if (message) showToast(message);
+    document.dispatchEvent(new CustomEvent("wait:closed"));
+  }, reduceMotion.matches ? 0 : ms("--resize-dur"));
+}
+
+/* ---------- I boarded: 09 Icon swap + 10 Success check, hold, then close */
+const checkPath = boardCheck.querySelector("path");
+const checkLen = String(Math.ceil(checkPath.getTotalLength()) + 1);
+checkPath.style.strokeDasharray = checkLen;
+checkPath.style.strokeDashoffset = checkLen;
+
+boardBtn.addEventListener("click", () => {
+  if (boardBtn.disabled) return;
+  boardBtn.disabled = true;
+  boardBtn.setAttribute("aria-label", "Boarded");
+  stopTimers();
+  boardSwap.dataset.state = "b";
+  boardCheck.dataset.state = "out";
+  void boardCheck.offsetWidth; // force reflow so keyframes restart
+  boardCheck.dataset.state = "in";
+  const settle = reduceMotion.matches ? 0 : ms("--check-path-delay") + ms("--check-path-dur");
+  setTimeout(() => closeCard("Boarded. Rating comes next."), settle + ms("--boarded-hold"));
+});
+
+
+/* ---------- Toast */
+let toastTimer;
+function showToast(text) {
+  const toast = $("toast");
+  toast.textContent = text;
+  toast.classList.add("is-shown");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove("is-shown"), 3000);
+}
+})();
+</script>
+</body>
+</html>

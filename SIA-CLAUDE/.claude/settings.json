@@ -1,5 +1,9 @@
 {
   "enabledPlugins": {
-    "skill-creator@anthropic-plugin-directory": true
+    "skill-creator@anthropic-plugin-directory": true,
+    "figma@claude-plugins-official": true,
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true,
+    "impeccable@impeccable": true,
+    "ponytail@ponytail": true
   }
 }
